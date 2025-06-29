@@ -1,0 +1,23 @@
+{
+    
+    "error": "Error",
+    "fetch_supply_chain_error": "Failed to load supply chain data",
+    "update_success": "Update successful!",
+    "update_failed": "Update failed",
+    "verification_success": "Verification successful!",
+    "verification_failed": "Verification failed",
+    "location_error": "Location access denied",
+    "geolocation_not_supported": "Geolocation not supported",
+    "select_stage": "Select stage",
+    "update_details_placeholder": "Enter update details...",
+    "get_location": "Capture Location",
+    "location_captured": "Location captured",
+    "location_not_captured": "Location not captured",
+    "cancel": "Cancel",
+    "update_stage": "Update Stage",
+    "scan_to_verify": "Scan to verify",
+    "scan_qr_description": "Scan this QR code with your phone to verify this product's authenticity and view its journey",
+    "product_id": "Product ID",
+    "blockchain_hash": "Blockchain Hash",
+    "Current": "Current"
+  }

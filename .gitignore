@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# environment variables
+.env
+
+# uploaded files or images
+uploads/
+
+# log files
+*.log
+
+# build artifacts
+build/
+dist/
+
+# system files
+.DS_Store

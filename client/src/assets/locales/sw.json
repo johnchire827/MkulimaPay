@@ -1,0 +1,23 @@
+{
+    
+    "error": "Hitilafu",
+    "fetch_supply_chain_error": "Imeshindwa kupakua data ya mnyororo wa usambazaji",
+    "update_success": "Sasisho limefanikiwa!",
+    "update_failed": "Sasisho halikufaulu",
+    "verification_success": "Uthibitishaji umefanikiwa!",
+    "verification_failed": "Uthibitishaji haujafanikiwa",
+    "location_error": "Ufikiaji wa eneo umekataliwa",
+    "geolocation_not_supported": "Eneo haipo",
+    "select_stage": "Chagua hatua",
+    "update_details_placeholder": "Weka maelezo ya sasisho...",
+    "get_location": "Pata Eneo",
+    "location_captured": "Eneo limepatikana",
+    "location_not_captured": "Eneo halijapatikana",
+    "cancel": "Ghairi",
+    "update_stage": "Sasisha Hatua",
+    "scan_to_verify": "Scan kuthibitisha",
+    "scan_qr_description": "Scan msimbo huu wa QR kwa simu yako kuthibitisha uhalali wa bidhaa hii na kuona safari yake",
+    "product_id": "Kitambulisho cha bidhaa",
+    "blockchain_hash": "Hash ya Blockchain",
+    "Current": "Sasa"
+  }
