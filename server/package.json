@@ -11,6 +11,7 @@
         "reset-db": "node scripts/resetDB.js"
     },
     "dependencies": {
+        "@react-oauth/google": "^0.12.2",
         "bcryptjs": "^2.4.3",
         "bullmq": "^5.5.3",
         "cloudinary": "^1.41.3",
@@ -22,7 +23,9 @@
         "express-session": "^1.17.3",
         "express-validator": "^7.2.1",
         "framer-motion": "^12.19.1",
+        "google-auth-library": "^10.1.0",
         "jsonwebtoken": "^9.0.2",
+        "jwt-decode": "^4.0.0",
         "leaflet": "^1.9.4",
         "moment": "^2.29.4",
         "morgan": "^1.10.0",

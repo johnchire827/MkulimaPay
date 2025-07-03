@@ -11,7 +11,7 @@ module.exports = {
       farmer_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Users',
+          model: 'users', // ✅ lowercase
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -20,7 +20,7 @@ module.exports = {
       product_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Products',
+          model: 'products', // ✅ lowercase
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -48,7 +48,11 @@ module.exports = {
       }
     });
   },
+
   async down(queryInterface, Sequelize) {
     await queryInterface.dropTable('InstoreSales');
+    await queryInterface.sequelize.query(
+      `DROP TYPE IF EXISTS "enum_InstoreSales_payment_method";`
+    );
   }
 };

@@ -51,7 +51,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     password: {
       type: DataTypes.STRING(255),
-      allowNull: false
+      allowNull: true
     },
     phone_number: {
       type: DataTypes.STRING(20),
@@ -76,6 +76,12 @@ module.exports = (sequelize, DataTypes) => {
     balance: {
       type: DataTypes.DECIMAL(10, 2),
       defaultValue: 0.00
+    },
+      google_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      unique: true,
+      field: 'google_id'  // Explicit column name mapping
     }
   }, {
     sequelize,

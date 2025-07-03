@@ -2,6 +2,7 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
+    // Create the SupplyChainEvents table
     await queryInterface.createTable('SupplyChainEvents', {
       id: {
         allowNull: false,
@@ -47,36 +48,64 @@ module.exports = {
       },
       createdAt: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
     });
 
-    await queryInterface.addColumn('Products', 'currentStage', {
-      type: Sequelize.STRING,
-      defaultValue: 'planting'
-    });
+    // Check existing columns in Products before adding
+    const table = await queryInterface.describeTable('Products');
 
-    await queryInterface.addColumn('Products', 'blockchainVerified', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false
-    });
+    if (!table.currentStage) {
+      await queryInterface.addColumn('Products', 'currentStage', {
+        type: Sequelize.STRING,
+        defaultValue: 'planting'
+      });
+    }
 
-    await queryInterface.addColumn('Products', 'blockchainTxHash', {
-      type: Sequelize.STRING,
-      defaultValue: ''
-    });
+    if (!table.blockchainVerified) {
+      await queryInterface.addColumn('Products', 'blockchainVerified', {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      });
+    }
 
-    await queryInterface.addColumn('Products', 'origin', {
-      type: Sequelize.STRING,
-      allowNull: true
-    });
+    if (!table.blockchainTxHash) {
+      await queryInterface.addColumn('Products', 'blockchainTxHash', {
+        type: Sequelize.STRING,
+        defaultValue: ''
+      });
+    }
+
+    if (!table.origin) {
+      await queryInterface.addColumn('Products', 'origin', {
+        type: Sequelize.STRING,
+        allowNull: true
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
+    // Drop the SupplyChainEvents table
     await queryInterface.dropTable('SupplyChainEvents');
-    await queryInterface.removeColumn('Products', 'currentStage');
-    await queryInterface.removeColumn('Products', 'blockchainVerified');
-    await queryInterface.removeColumn('Products', 'blockchainTxHash');
-    await queryInterface.removeColumn('Products', 'origin');
+
+    // Safely remove columns if they exist
+    const table = await queryInterface.describeTable('Products');
+
+    if (table.currentStage) {
+      await queryInterface.removeColumn('Products', 'currentStage');
+    }
+
+    if (table.blockchainVerified) {
+      await queryInterface.removeColumn('Products', 'blockchainVerified');
+    }
+
+    if (table.blockchainTxHash) {
+      await queryInterface.removeColumn('Products', 'blockchainTxHash');
+    }
+
+    if (table.origin) {
+      await queryInterface.removeColumn('Products', 'origin');
+    }
   }
 };

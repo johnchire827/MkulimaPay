@@ -1,5 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../services/api';
+import jwt_decode from 'jwt-decode';
 
 const AuthContext = createContext();
 
@@ -23,6 +24,28 @@ export function AuthProvider({ children }) {
     }
     setLoading(false);
   }, []);
+
+  const googleLogin = async (credential) => {
+    try {
+      const response = await api.post('/auth/google', { credential });
+      
+      const { user: userData, token } = response.data;
+      const userWithToken = { ...userData, token };
+      
+      localStorage.setItem('user', JSON.stringify(userWithToken));
+      localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      
+      setUser(userWithToken);
+      return userWithToken;
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message || 
+                          error.response?.data?.details || 
+                          'Google login failed. Please try again.';
+      throw new Error(errorMessage);
+    }
+  };
 
   const login = async (phone, password) => {
     try {
@@ -51,7 +74,6 @@ export function AuthProvider({ children }) {
 
   const register = async (userData) => {
     try {
-      // Create a clean payload without unnecessary fields
       const payload = {
         name: userData.name,
         phone: userData.phone,
@@ -93,6 +115,7 @@ export function AuthProvider({ children }) {
       login, 
       register, 
       logout,
+      googleLogin,
       isFarmer: user?.role === 'farmer' || user?.role === 'both',
       isBuyer: user?.role === 'buyer' || user?.role === 'both'
     }}>

@@ -1178,6 +1178,7 @@ return (
                     <option value="litre">Litre</option>
                     <option value="dozen">Dozen</option>
                     <option value="basket">Basket</option>
+                      <option value="tray">Tray</option>
                   </Select> 
                 </FormControl> 
 
@@ -1212,6 +1213,7 @@ return (
                     <option value="Spices">Spices</option>
                     <option value="Nuts">Nuts</option>
                     <option value="Tubers">Tubers</option>
+                    <option value="tray">Tray</option>
                   </Select> 
                 </FormControl> 
 
@@ -1232,6 +1234,7 @@ return (
                     <option value="Meru">Meru</option>
                     <option value="Thika">Thika</option>
                     <option value="Nyeri">Nyeri</option>
+                    <option value="Others">Others</option>
                   </Select> 
                 </FormControl> 
               </Flex> 
