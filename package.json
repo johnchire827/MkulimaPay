@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "scripts": {
         "start": "node server.js",
-        "dev": "nodemon server.js",
+        "dev": "nodemon server\server.js",
         "test": "jest --watchAll --detectOpenHandles",
         "build": "echo \"Server build complete - no actual build required\" && exit 0",
         "migrate": "sequelize-cli db:migrate",
