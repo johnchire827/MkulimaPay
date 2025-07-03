@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { app, runMigrations, syncDatabase } = require('./app');
 const db = require('./models');  // This now has db.sequelize defined
-const { redis } = require('./config/redis.config');
+const { redis, connectRedis } = require('./config/redis.config');
 const net = require('net');
 const passport = require('passport');
 const session = require('express-session');
@@ -90,7 +90,8 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Test Redis connection
-redis.connect().then(async () => {
+connectRedis().then(async () => {
+
   console.log('Redis connected successfully');
   
   try {
