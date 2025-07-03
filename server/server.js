@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { app, runMigrations, syncDatabase } = require('./app');
-const db = require('./models');
+const db = require('./models');  // This now has db.sequelize defined
 const { redis } = require('./config/redis.config');
 const net = require('net');
 const passport = require('passport');
@@ -10,19 +10,22 @@ const RedisStore = require('connect-redis').default;
 // Initialize passport
 require('./config/passport')(passport);
 
-// Check if port is free
+// Function to check if port is available
 const isPortFree = (port) => {
   return new Promise((resolve) => {
     const server = net.createServer()
       .once('error', () => resolve(false))
-      .once('listening', () => server.close(() => resolve(true)))
+      .once('listening', () => {
+        server.close(() => resolve(true));
+      })
       .listen(port);
   });
 };
 
+// Find next available port
 const getAvailablePort = async (startPort) => {
   let port = startPort;
-  while (!(await isPortFree(port))) {
+  while (!await isPortFree(port)) {
     console.log(`Port ${port} is in use, trying ${port + 1}...`);
     port++;
   }
@@ -31,34 +34,47 @@ const getAvailablePort = async (startPort) => {
 
 async function resetSequences() {
   try {
-    console.log('Resetting sequences...');
+    console.log('Resetting sequences to prevent ID conflicts...');
+    
     const tables = ['users', 'orders', 'products', 'reviews', 'supplychainevents'];
+    
     for (const table of tables) {
-      const [seqResult] = await db.sequelize.query(
-        `SELECT pg_get_serial_sequence('${table}', 'id') as seq_name`
-      );
-      const seqName = seqResult[0]?.seq_name;
-      if (!seqName) continue;
-      await db.sequelize.query(
-        `SELECT setval('${seqName}', (SELECT COALESCE(MAX(id), 0) + 1 FROM ${table}), false)`
-      );
-      console.log(`✔ Reset sequence for ${table}`);
+      try {
+        const [seqResult] = await db.sequelize.query(
+          `SELECT pg_get_serial_sequence('${table}', 'id') as seq_name`
+        );
+        
+        const seqName = seqResult[0]?.seq_name;
+        if (!seqName) {
+          console.log(`No sequence found for table ${table}, skipping`);
+          continue;
+        }
+        
+        await db.sequelize.query(
+          `SELECT setval('${seqName}', (SELECT COALESCE(MAX(id), 0) + 1 FROM ${table}), false)`
+        );
+        
+        console.log(`Reset sequence for ${table} using ${seqName}`);
+      } catch (err) {
+        console.error(`Error resetting sequence for ${table}:`, err.message);
+      }
     }
-  } catch (err) {
-    console.error('Error resetting sequences:', err.message);
+  } catch (error) {
+    console.error('Error resetting sequences:', error);
   }
 }
 
-// Session configuration
+// Session configuration with Redis store
 const sessionConfig = {
+  store: new RedisStore({ client: redis }),
   secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000,
-  },
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 };
 
 if (process.env.NODE_ENV === 'production') {
@@ -66,38 +82,44 @@ if (process.env.NODE_ENV === 'production') {
   sessionConfig.cookie.secure = true;
 }
 
-// Try Redis connection
-(async () => {
-  let useRedis = false;
+// Add session middleware
+app.use(session(sessionConfig));
 
+// Initialize Passport and session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Test Redis connection
+redis.connect().then(async () => {
+  console.log('Redis connected successfully');
+  
   try {
-    await redis.connect();
-    console.log('✅ Redis connected');
-
-    sessionConfig.store = new RedisStore({ client: redis });
-    useRedis = true;
-  } catch (err) {
-    console.warn('⚠️ Redis unavailable. Falling back to in-memory sessions.');
-  }
-
-  // Attach session regardless
-  app.use(session(sessionConfig));
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  try {
-    console.log('✅ Database status: OK');
+    // Database connection is already established in models/index.js
+    console.log('Database connection status: OK');
+    
+    // Run migrations
     await runMigrations();
+    
+    // Sync models
     await syncDatabase();
+    
+    // Reset sequences
     await resetSequences();
-
+    
+    // Find available port
     const startPort = Number(process.env.PORT || 8080);
     const port = await getAvailablePort(startPort);
+    
+    // Start HTTP server
     app.listen(port, () => {
       console.log(`🚀 Server running on port ${port}`);
+      console.log(`🔗 Access it at: http://localhost:${port}`);
     });
-  } catch (err) {
-    console.error('❌ Server failed to start:', err);
+  } catch (error) {
+    console.error('Server startup failed:', error);
     process.exit(1);
   }
-})();
+}).catch(err => {
+  console.error('Redis connection error:', err);
+  process.exit(1);
+});
