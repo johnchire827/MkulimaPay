@@ -2,6 +2,7 @@ const { app, runMigrations, syncDatabase } = require('./app');
 
 const PORT = process.env.PORT || 10000;
 
+
 (async () => {
   try {
     await runMigrations();

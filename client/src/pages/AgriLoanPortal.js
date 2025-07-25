@@ -1,67 +1,193 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { 
   Box, Heading, Text, Tabs, TabList, Tab, TabPanels, TabPanel, Card, CardBody, 
   SimpleGrid, Button, Flex, Icon, FormControl, FormLabel, Input, Select, 
   useToast, Progress, Stat, StatLabel, StatNumber, StatHelpText, StatArrow, Badge  
 } from '@chakra-ui/react';
 import { FaHandHoldingUsd, FaCalculator, FaHistory, FaChartLine } from 'react-icons/fa';
-import { useLanguage } from '../context/LanguageContext';
+import { FinancialDataContext } from '../context/FinancialDataContext';
+
+// Credit scoring algorithm weights
+const CREDIT_WEIGHTS = {
+  totalRevenue: 0.3,
+  growthRate: 0.2,
+  inventoryValue: 0.15,
+  customerRating: 0.15,
+  pendingOrders: 0.1,
+  instoreSales: 0.1
+};
 
 const AgriLoanPortal = () => {
-  const { t } = useLanguage();
   const toast = useToast();
   const [loanAmount, setLoanAmount] = useState(50000);
   const [loanTerm, setLoanTerm] = useState(12);
   const [purpose, setPurpose] = useState('equipment');
-  const [eligibilityScore, setEligibilityScore] = useState(87);
+  const [eligibilityScore, setEligibilityScore] = useState(0);
   const [tabIndex, setTabIndex] = useState(0);
   const [loanHistory, setLoanHistory] = useState([]);
   const [currentLoanType, setCurrentLoanType] = useState('');
   
-  // Loan products data
+  // Get real-time financial data from context
+  const { financialData } = useContext(FinancialDataContext);
+  
+  // Calculate credit score based on dashboard metrics
+  const calculateCreditScore = () => {
+    if (!financialData) return 0;
+    
+    const { 
+      totalSales = 0, 
+      growthPercentage = 0, 
+      inventoryValue = 0,
+      rating = 0,
+      pendingOrders = 0,
+      instoreSalesTotal = 0
+    } = financialData;
+    
+    // Calculate individual components
+    const revenueScore = Math.min(100, (totalSales / 500000) * 100) * CREDIT_WEIGHTS.totalRevenue;
+    const growthScore = (growthPercentage > 0 ? Math.min(100, growthPercentage * 10) : 0) * CREDIT_WEIGHTS.growthRate;
+    const inventoryScore = Math.min(100, (inventoryValue / 300000) * 100) * CREDIT_WEIGHTS.inventoryValue;
+    const ratingScore = Math.min(100, rating * 20) * CREDIT_WEIGHTS.customerRating;
+    const ordersScore = Math.min(100, pendingOrders * 10) * CREDIT_WEIGHTS.pendingOrders;
+    const instoreScore = Math.min(100, (instoreSalesTotal / 100000) * 100) * CREDIT_WEIGHTS.instoreSales;
+    
+    // Sum all components for final score
+    return Math.min(100, Math.round(
+      revenueScore + 
+      growthScore + 
+      inventoryScore + 
+      ratingScore + 
+      ordersScore + 
+      instoreScore
+    ));
+  };
+
+  // Financial institutions data
   const loanProducts = [
     {
       id: 1,
-      name: "Seasonal Financing",
+      name: "Equity Bank",
       type: "seasonal",
       amount: "Up to KES 200,000",
       term: "3-12 months",
-      interest: "8% p.a.",
+      interest: "10-14% p.a.",
       features: [
-        "Instant approval for verified farmers",
-        "Harvest-cycle repayment scheduling",
-        "No processing fees"
+        "Asset financing, seasonal loans",
+        "Collateral required for loans above KES 100,000",
+        "Flexible repayment options"
       ]
     },
     {
       id: 2,
-      name: "Equipment Financing",
-      type: "equipment",
-      amount: "Up to KES 1,000,000",
+      name: "Cooperative Bank",
+      type: "dairy",
+      amount: "Up to KES 500,000",
       term: "12-36 months",
-      interest: "10% p.a.",
+      interest: "12-15% p.a.",
       features: [
-        "80% equipment cost coverage",
-        "3-month grace period",
-        "Maintenance cost inclusion"
+        "Sacco loans, dairy loans",
+        "Group lending options",
+        "Discounts for cooperative members"
       ]
     },
     {
       id: 3,
-      name: "Expansion Capital",
-      type: "expansion",
+      name: "KCB Bank",
+      type: "agribusiness",
+      amount: "Up to KES 1,000,000",
+      term: "6-24 months",
+      interest: "9-13% p.a.",
+      features: [
+        "Agri-business loans, input financing",
+        "Insurance bundled with loan",
+        "Mobile banking integration"
+      ]
+    },
+    {
+      id: 4,
+      name: "Agricultural Finance Corporation",
+      type: "long-term",
       amount: "Up to KES 5,000,000",
       term: "24-60 months",
-      interest: "12% p.a.",
+      interest: "8-12% p.a.",
       features: [
-        "Land acquisition support",
-        "Infrastructure development",
-        "Multi-year repayment"
+        "Long-term loans, machinery loans",
+        "Government guaranteed",
+        "Technical support included"
       ]
     }
   ];
 
-  
+  // Calculate debt-to-income ratio
+  const calculateDebtRatio = () => {
+    if (!financialData || !financialData.totalSales) return 0;
+    
+    // Calculate monthly income (annual sales / 12)
+    const monthlyIncome = financialData.totalSales / 12;
+    
+    // Calculate monthly debt payments (estimated)
+    const monthlyDebt = loanAmount * 0.00875; // Approx 10.5% APR
+    
+    // Return debt-to-income ratio
+    return monthlyIncome > 0 ? 
+      Math.min(100, (monthlyDebt / monthlyIncome) * 100) : 0;
+  };
+
+  // Calculate savings rate
+  const calculateSavingsRate = () => {
+    if (!financialData || !financialData.totalSales || !financialData.inventoryValue) return 0;
+    
+    // Estimate savings as 15% of revenue minus inventory investment
+    return Math.min(100, Math.max(0, 15 - (financialData.inventoryValue / financialData.totalSales) * 5));
+  };
+
+  // Generate personalized financial roadmap
+  const generateFinancialRoadmap = () => {
+    if (!financialData) return [];
+    
+    const roadmap = [];
+    
+    // Revenue growth target
+    roadmap.push({
+      title: `Increase total revenue to KES ${Math.round((financialData.totalSales || 0) * 1.2).toLocaleString()}`,
+      progress: financialData.totalSales > 0 
+        ? Math.min(100, (financialData.totalSales / (financialData.totalSales * 1.2)) * 100)
+        : 0
+    });
+    
+    // Inventory optimization
+    const targetInventoryRatio = 0.3; // 30% of revenue
+    const currentInventoryRatio = financialData.totalSales > 0 ? 
+      (financialData.inventoryValue || 0) / financialData.totalSales : 0;
+      
+    roadmap.push({
+      title: `Optimize inventory to ${(targetInventoryRatio * 100).toFixed(0)}% of revenue`,
+      progress: Math.min(100, (1 - Math.max(0, currentInventoryRatio - targetInventoryRatio) / targetInventoryRatio) * 100)
+    });
+    
+    // Customer rating improvement
+    if ((financialData.rating || 0) < 4.5) {
+      roadmap.push({
+        title: "Achieve customer rating of 4.5 stars",
+        progress: ((financialData.rating || 0) / 4.5) * 100
+      });
+    }
+    
+    // Emergency fund
+    const emergencyFundTarget = (financialData.totalSales || 0) * 0.1; // 10% of annual revenue
+    roadmap.push({
+      title: `Establish emergency fund of KES ${Math.round(emergencyFundTarget).toLocaleString()}`,
+      progress: 0 // Starts at 0
+    });
+    
+    return roadmap;
+  };
+
+  // Initialize credit score
+  useEffect(() => {
+    const score = calculateCreditScore();
+    setEligibilityScore(score);
+  }, [financialData]);
 
   const handleApplyNow = (product) => {
     switch(product.type) {
@@ -71,13 +197,19 @@ const AgriLoanPortal = () => {
         setPurpose('seeds');
         setCurrentLoanType(product.name);
         break;
-      case 'equipment':
-        setLoanAmount(1000000);
+      case 'dairy':
+        setLoanAmount(500000);
         setLoanTerm(36);
+        setPurpose('livestock');
+        setCurrentLoanType(product.name);
+        break;
+      case 'agribusiness':
+        setLoanAmount(1000000);
+        setLoanTerm(24);
         setPurpose('equipment');
         setCurrentLoanType(product.name);
         break;
-      case 'expansion':
+      case 'long-term':
         setLoanAmount(5000000);
         setLoanTerm(60);
         setPurpose('expansion');
@@ -101,27 +233,17 @@ const AgriLoanPortal = () => {
     setTabIndex(1);
   };
 
-  const calculateEligibility = () => {
-    const newScore = Math.min(100, eligibilityScore + 5);
-    setEligibilityScore(newScore);
-    
-    toast({
-      title: "Eligibility Updated",
-      description: "Your eligibility score has been recalculated",
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
-  };
-
   const applyForLoan = () => {
     // Create new loan application
+    const amount = parseInt(loanAmount) || 0;
+    
     const newLoan = {
-      id: Date.now(), // Unique ID based on timestamp
-      date: new Date().toISOString().split('T')[0], // Current date
-      amount: `KES ${parseInt(loanAmount).toLocaleString()}`,
+      id: Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      amount: `KES ${amount.toLocaleString()}`,
       status: "Pending Approval",
-      type: currentLoanType || "Agricultural Loan"
+      type: currentLoanType || "Agricultural Loan",
+      institution: currentLoanType.includes('Bank') ? currentLoanType : 'Agricultural Finance Corporation'
     };
     
     // Add to loan history
@@ -134,12 +256,6 @@ const AgriLoanPortal = () => {
       duration: 5000,
       isClosable: true,
     });
-    
-    // Reset calculator fields
-    setLoanAmount(50000);
-    setLoanTerm(12);
-    setPurpose('equipment');
-    setCurrentLoanType('');
     
     // Switch to Loan History tab
     setTabIndex(2);
@@ -156,16 +272,16 @@ const AgriLoanPortal = () => {
         onChange={setTabIndex}
       >
         <TabList mb={8}>
-          <Tab><Icon as={FaHandHoldingUsd} mr={2} /> Loan Products</Tab>
-          <Tab><Icon as={FaCalculator} mr={2} /> Loan Calculator</Tab>
+          <Tab><Icon as={FaHandHoldingUsd} mr={2} /> Financial Institutions</Tab>
+          <Tab><Icon as={FaCalculator} mr={2} /> Loan Simulator</Tab>
           <Tab><Icon as={FaHistory} mr={2} /> Loan History</Tab>
           <Tab><Icon as={FaChartLine} mr={2} /> Financial Health</Tab>
         </TabList>
         
         <TabPanels>
-          {/* Loan Products */}
+          {/* Financial Institutions */}
           <TabPanel>
-            <SimpleGrid columns={{ base: 1, md: 3 }} spacing={6} mb={10}>
+            <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6} mb={10}>
               {loanProducts.map(product => (
                 <Card key={product.id} borderRadius="xl" borderTop="4px solid" borderTopColor="green.500">
                   <CardBody>
@@ -174,7 +290,7 @@ const AgriLoanPortal = () => {
                     <Text mb={1}>Loan Term: {product.term}</Text>
                     <Text mb={4}>Interest Rate: {product.interest}</Text>
                     
-                    <Text fontWeight="medium" mb={2}>Key Features:</Text>
+                    <Text fontWeight="medium" mb={2}>Features:</Text>
                     <Box mb={4}>
                       {product.features.map((feature, index) => (
                         <Flex key={index} align="center" mb={2}>
@@ -198,24 +314,24 @@ const AgriLoanPortal = () => {
             
             <Card bg="green.50" borderRadius="xl">
               <CardBody>
-                <Heading size="md" mb={4}>Why Choose MkulimaPay Financing?</Heading>
+                <Heading size="md" mb={4}>Loan Application Requirements</Heading>
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>
                   {[
                     { 
-                      title: "Competitive Rates", 
-                      desc: "Industry-low interest rates with no hidden fees" 
+                      title: "Credit Score", 
+                      desc: "Minimum score of 60 required for all loans" 
                     },
                     { 
-                      title: "Rapid Approval", 
-                      desc: "24-hour decisioning and 48-hour disbursement" 
+                      title: "Business History", 
+                      desc: "At least 6 months of transaction history" 
                     },
                     { 
-                      title: "Flexible Terms", 
-                      desc: "Customized repayment aligned with harvest cycles" 
+                      title: "Revenue Threshold", 
+                      desc: "Minimum KES 50,000 monthly revenue" 
                     },
                     { 
-                      title: "Minimal Collateral", 
-                      desc: "Collateral-free options for loans up to KES 300,000" 
+                      title: "Collateral", 
+                      desc: "Required for loans above KES 500,000" 
                     }
                   ].map((item, index) => (
                     <Box key={index} bg="white" p={4} borderRadius="lg">
@@ -228,12 +344,12 @@ const AgriLoanPortal = () => {
             </Card>
           </TabPanel>
           
-          {/* Loan Calculator */}
+          {/* Loan Simulator */}
           <TabPanel>
             <Flex direction={{ base: 'column', md: 'row' }} gap={8}>
               <Card flex={1} borderRadius="xl">
                 <CardBody>
-                  <Heading size="md" mb={6}>Loan Simulator</Heading>
+                  <Heading size="md" mb={6}>Loan Application</Heading>
                   
                   <FormControl mb={4}>
                     <FormLabel>Loan Amount (KES)</FormLabel>
@@ -276,71 +392,82 @@ const AgriLoanPortal = () => {
                   <Button 
                     colorScheme="green" 
                     w="full"
-                    onClick={calculateEligibility}
+                    onClick={applyForLoan}
+                    isDisabled={eligibilityScore < 60}
                   >
-                    Check Eligibility
+                    Submit Application
                   </Button>
                 </CardBody>
               </Card>
               
               <Card flex={1} borderRadius="xl" bg="blue.50">
                 <CardBody>
-                  <Heading size="md" mb={6}>Eligibility Assessment</Heading>
+                  <Heading size="md" mb={6}>Credit Assessment</Heading>
                   
                   <Box textAlign="center" mb={6}>
                     <Text fontWeight="bold" mb={2}>Creditworthiness Score</Text>
                     <Progress 
                       value={eligibilityScore} 
                       size="lg" 
-                      colorScheme={eligibilityScore > 75 ? 'green' : eligibilityScore > 50 ? 'yellow' : 'red'} 
+                      colorScheme={eligibilityScore > 75 ? 'green' : eligibilityScore > 60 ? 'yellow' : 'red'} 
                       mb={2}
                       borderRadius="full"
                     />
                     <Text fontSize="2xl" fontWeight="bold">{eligibilityScore}/100</Text>
                   </Box>
                   
-                  {eligibilityScore >= 70 ? (
+                  {eligibilityScore >= 75 ? (
                     <Box bg="green.100" p={4} borderRadius="lg" mb={6}>
-                      <Text fontWeight="bold" color="green.800">High Approval Probability</Text>
-                      <Text color="green.800">Excellent credit profile with strong repayment capacity</Text>
+                      <Text fontWeight="bold" color="green.800">Excellent Credit</Text>
+                      <Text color="green.800">High approval probability across all lenders</Text>
                     </Box>
-                  ) : eligibilityScore >= 50 ? (
+                  ) : eligibilityScore >= 60 ? (
                     <Box bg="yellow.100" p={4} borderRadius="lg" mb={6}>
-                      <Text fontWeight="bold" color="yellow.800">Moderate Approval Probability</Text>
-                      <Text color="yellow.800">Good profile with potential for approval with conditions</Text>
+                      <Text fontWeight="bold" color="yellow.800">Good Credit</Text>
+                      <Text color="yellow.800">Approval likely with standard terms</Text>
                     </Box>
                   ) : (
                     <Box bg="red.100" p={4} borderRadius="lg" mb={6}>
-                      <Text fontWeight="bold" color="red.800">Improvement Needed</Text>
-                      <Text color="red.800">Recommend financial counseling before application</Text>
+                      <Text fontWeight="bold" color="red.800">Needs Improvement</Text>
+                      <Text color="red.800">Recommend improving business metrics before applying</Text>
                     </Box>
                   )}
                   
                   <Box mb={6}>
-                    <Text fontWeight="bold" mb={2}>Loan Simulation:</Text>
+                    <Text fontWeight="bold" mb={2}>Financial Metrics:</Text>
                     <SimpleGrid columns={2} spacing={2}>
-                      <Text>Loan Amount:</Text>
-                      <Text fontWeight="bold">KES {parseInt(loanAmount).toLocaleString()}</Text>
+                      <Text>Total Revenue:</Text>
+                      <Text fontWeight="bold">
+                        {financialData ? `KES ${(financialData.totalSales || 0).toLocaleString()}` : 'N/A'}
+                      </Text>
                       
-                      <Text>Interest Rate:</Text>
-                      <Text fontWeight="bold">10.5% p.a.</Text>
+                      <Text>Revenue Growth:</Text>
+                      <Text fontWeight="bold">
+                        {financialData ? `${(financialData.growthPercentage || 0).toFixed(2)}%` : 'N/A'}
+                      </Text>
                       
-                      <Text>Monthly Payment:</Text>
-                      <Text fontWeight="bold">KES {Math.round(loanAmount * 0.00875).toLocaleString()}</Text>
+                      <Text>Inventory Value:</Text>
+                      <Text fontWeight="bold">
+                        {financialData ? `KES ${(financialData.inventoryValue || 0).toLocaleString()}` : 'N/A'}
+                      </Text>
                       
-                      <Text>Total Repayment:</Text>
-                      <Text fontWeight="bold">KES {Math.round(loanAmount * 1.105).toLocaleString()}</Text>
+                      <Text>Customer Rating:</Text>
+                      <Text fontWeight="bold">
+                        {financialData ? (financialData.rating || 0).toFixed(1) : 'N/A'} / 5
+                      </Text>
                     </SimpleGrid>
                   </Box>
                   
-                  <Button 
-                    colorScheme="green" 
-                    w="full"
-                    isDisabled={eligibilityScore < 50}
-                    onClick={applyForLoan}
-                  >
-                    Submit Application
-                  </Button>
+                  <Box>
+                    <Text fontWeight="bold" mb={2}>Recommended Loan Products:</Text>
+                    {eligibilityScore >= 75 ? (
+                      <Text>All loan products available</Text>
+                    ) : eligibilityScore >= 60 ? (
+                      <Text>Seasonal, Equipment, and Expansion loans</Text>
+                    ) : (
+                      <Text>Seasonal loans only</Text>
+                    )}
+                  </Box>
                 </CardBody>
               </Card>
             </Flex>
@@ -368,6 +495,7 @@ const AgriLoanPortal = () => {
                       <Box flex={1}>
                         <Text fontWeight="bold">{loan.type}</Text>
                         <Text color="gray.500">{loan.date}</Text>
+                        <Text fontSize="sm" color="gray.500">{loan.institution}</Text>
                       </Box>
                       <Box flex={1} textAlign="right">
                         <Text fontWeight="bold">{loan.amount}</Text>
@@ -391,7 +519,7 @@ const AgriLoanPortal = () => {
                 <CardBody textAlign="center" py={10}>
                   <Text color="gray.500">No loan applications found</Text>
                   <Button mt={4} colorScheme="green" onClick={() => setTabIndex(0)}>
-                    Browse Loan Products
+                    Browse Financial Institutions
                   </Button>
                 </CardBody>
               </Card>
@@ -399,8 +527,8 @@ const AgriLoanPortal = () => {
             
             <Card mt={8} bg="green.50" borderRadius="xl">
               <CardBody>
-                <Heading size="md" mb={4}>Smart Repayment Strategies</Heading>
-                <Text mb={4}>Effective techniques to manage loan obligations while maintaining farm operations:</Text>
+                <Heading size="md" mb={4}>Loan Repayment Strategies</Heading>
+                <Text mb={4}>Optimize your repayment schedule with these techniques:</Text>
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                   {[
                     "Align payments with harvest cycles and market sales",
@@ -427,12 +555,11 @@ const AgriLoanPortal = () => {
                 <CardBody>
                   <Stat>
                     <StatLabel>Credit Score</StatLabel>
-                    <StatNumber>720</StatNumber>
+                    <StatNumber>{eligibilityScore}</StatNumber>
                     <StatHelpText>
-                      <StatArrow type="increase" />
-                      15 points this year
+                      {eligibilityScore >= 75 ? 'Excellent' : 
+                       eligibilityScore >= 60 ? 'Good' : 'Needs Improvement'}
                     </StatHelpText>
-                    <Text fontSize="sm" mt={2}>Prime Tier (Top 30% of farmers)</Text>
                   </Stat>
                 </CardBody>
               </Card>
@@ -441,11 +568,10 @@ const AgriLoanPortal = () => {
                 <CardBody>
                   <Stat>
                     <StatLabel>Debt-to-Income Ratio</StatLabel>
-                    <StatNumber>28%</StatNumber>
+                    <StatNumber>{calculateDebtRatio().toFixed(1)}%</StatNumber>
                     <StatHelpText>
-                      Healthy Range: Below 35%
+                      {calculateDebtRatio() < 35 ? 'Healthy' : 'High Risk'}
                     </StatHelpText>
-                    <Text fontSize="sm" mt={2}>Sustainable debt management</Text>
                   </Stat>
                 </CardBody>
               </Card>
@@ -454,11 +580,10 @@ const AgriLoanPortal = () => {
                 <CardBody>
                   <Stat>
                     <StatLabel>Savings Rate</StatLabel>
-                    <StatNumber>15%</StatNumber>
+                    <StatNumber>{calculateSavingsRate().toFixed(1)}%</StatNumber>
                     <StatHelpText>
                       Recommended: 15-20%
                     </StatHelpText>
-                    <Text fontSize="sm" mt={2}>Annual income retained</Text>
                   </Stat>
                 </CardBody>
               </Card>
@@ -467,19 +592,14 @@ const AgriLoanPortal = () => {
             <Card borderRadius="xl" mb={8}>
               <CardBody>
                 <Heading size="md" mb={4}>Financial Improvement Roadmap</Heading>
-                <Text mb={4}>Personalized targets to enhance your financial resilience:</Text>
+                <Text mb={4}>Personalized targets to enhance your financial health:</Text>
                 
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  {[
-                    { title: "Establish 6-month emergency fund", progress: 75 },
-                    { title: "Reduce operational costs by 15%", progress: 40 },
-                    { title: "Achieve debt-free status", progress: 90 },
-                    { title: "Diversify income streams", progress: 30 }
-                  ].map((goal, index) => (
+                  {generateFinancialRoadmap().map((goal, index) => (
                     <Box key={index} bg="gray.50" p={4} borderRadius="lg">
                       <Text fontWeight="bold" mb={2}>{goal.title}</Text>
                       <Progress value={goal.progress} colorScheme="green" size="sm" borderRadius="full" />
-                      <Text mt={1} fontSize="sm" textAlign="right">{goal.progress}% complete</Text>
+                      <Text mt={1} fontSize="sm" textAlign="right">{goal.progress.toFixed(1)}% complete</Text>
                     </Box>
                   ))}
                 </SimpleGrid>
@@ -488,13 +608,13 @@ const AgriLoanPortal = () => {
 
             <Card bg="purple.50" borderRadius="xl">
               <CardBody>
-                <Heading size="md" mb={4}>Financial Education Resources</Heading>
+                <Heading size="md" mb={4}>Credit Improvement Resources</Heading>
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                   {[
-                    "Crop-cycle budgeting templates",
-                    "Interest rate negotiation guide",
-                    "Loan restructuring strategies",
-                    "Profitability analysis tools"
+                    "Revenue optimization strategies",
+                    "Inventory management techniques",
+                    "Customer satisfaction improvement guide",
+                    "Debt management counseling"
                   ].map((resource, index) => (
                     <Flex key={index} align="center" p={3} bg="white" borderRadius="md">
                       <Icon as={FaChartLine} color="purple.500" mr={3} />
@@ -503,7 +623,7 @@ const AgriLoanPortal = () => {
                   ))}
                 </SimpleGrid>
                 <Button mt={4} colorScheme="purple" variant="outline">
-                  Access Resource Library
+                  Access Resources
                 </Button>
               </CardBody>
             </Card>

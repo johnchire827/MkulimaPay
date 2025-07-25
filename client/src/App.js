@@ -18,8 +18,7 @@ import { LanguageProvider } from './context/LanguageContext';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import OrderConfirmation from './pages/OrderConfirmation';
-// Add these routes
-
+import { FinancialDataProvider } from './context/FinancialDataContext';
 import FarmerAddProduct from './pages/FarmerAddProduct';
 
 function App() {
@@ -27,68 +26,88 @@ function App() {
     <ChakraProvider theme={theme}>
       <LanguageProvider>
         <AuthProvider>
-          <Router>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/auth" element={<AuthPage />} />
-              
-              <Route path="/dashboard" element={
-                <ProtectedRoute requiredRole="farmer">
-                  <FarmerDashboard />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/marketplace" element={
-                <ProtectedRoute allowedRoles={["buyer", "both"]}>
-                  <BuyerMarketplace />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/product/:id" element={
-                <ProtectedRoute allowedRoles={["buyer", "farmer"]}>
-                  <ProductDetail />
-                </ProtectedRoute>
-              } />
-               <Route
-            path="/add-product"
-            element={
-              <ProtectedRoute allowedRoles={["farmer", "both"]}>
-                <FarmerAddProduct />
-              </ProtectedRoute>
-            }/>
-              
-              <Route path="/supply-chain/:productId" element={
-                <ProtectedRoute>
-                  <SupplyChainTracker />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/carbon-market" element={
-                <ProtectedRoute requiredRole="farmer">
-                  <CarbonCreditMarket />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/loans" element={
-                <ProtectedRoute requiredRole="farmer">
-                  <AgriLoanPortal />
-                </ProtectedRoute>
-              } />
-              
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <UserProfile />
-                </ProtectedRoute>
-              } />
-             
-              <Route path="/tracker/:productId" element={<SupplyChainTracker />} />
-              <Route path="/cart" element={<CartPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-              
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Router>
+          <FinancialDataProvider>
+            <Router>
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/auth" element={<AuthPage />} />
+                
+                <Route path="/dashboard" element={
+                  <ProtectedRoute requiredRole="farmer">
+                    <FarmerDashboard />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/marketplace" element={
+                  <ProtectedRoute allowedRoles={["buyer", "both"]}>
+                    <BuyerMarketplace />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/product/:id" element={
+                  <ProtectedRoute allowedRoles={["buyer", "farmer"]}>
+                    <ProductDetail />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/add-product" element={
+                  <ProtectedRoute allowedRoles={["farmer", "both"]}>
+                    <FarmerAddProduct />
+                  </ProtectedRoute>
+                }/>
+                
+                <Route path="/supply-chain/:productId" element={
+                  <ProtectedRoute>
+                    <SupplyChainTracker />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/carbon-market" element={
+                  <ProtectedRoute requiredRole="farmer">
+                    <CarbonCreditMarket />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/loans" element={
+                  <ProtectedRoute requiredRole="farmer">
+                    <AgriLoanPortal />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/profile" element={
+                  <ProtectedRoute>
+                    <UserProfile />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/tracker/:productId" element={
+                  <ProtectedRoute>
+                    <SupplyChainTracker />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/cart" element={
+                  <ProtectedRoute allowedRoles={["buyer", "both"]}>
+                    <CartPage />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/checkout" element={
+                  <ProtectedRoute allowedRoles={["buyer", "both"]}>
+                    <CheckoutPage />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/order-confirmation/:orderId" element={
+                  <ProtectedRoute>
+                    <OrderConfirmation />
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Router>
+          </FinancialDataProvider>
         </AuthProvider>
       </LanguageProvider>
     </ChakraProvider>

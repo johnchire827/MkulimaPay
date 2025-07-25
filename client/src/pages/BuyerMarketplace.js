@@ -1,22 +1,25 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { 
   Box, Heading, Text, Input, SimpleGrid, Card, CardHeader, CardBody, 
   CardFooter, Button, Flex, Spinner, Badge, Icon, useDisclosure, 
   InputGroup, InputLeftElement, useToast, Alert, AlertIcon, IconButton,
   Image, Skeleton, Tag, TagLabel, TagLeftIcon, Grid, GridItem, Avatar,
-  useColorModeValue,Select, Wrap, WrapItem, Center
+  useColorModeValue, Select, Wrap, WrapItem, Center, Modal,
+  ModalOverlay, ModalContent, ModalHeader, ModalCloseButton, ModalBody,
+  ModalFooter, Stack, VStack, HStack
 } from '@chakra-ui/react';
 import { 
   FaSearch, FaLeaf, FaMapMarkerAlt, FaRedo, FaUser, 
-  FaFire, FaStar, FaClock, FaShoppingCart
+  FaFire, FaStar, FaClock, FaShoppingCart, FaPhone, FaVideo, FaTimes,
+  FaMicrophone, FaMicrophoneSlash, FaVideoSlash
 } from 'react-icons/fa';
-
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import BidModal from '../components/buyer/BidModal';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import AgoraRTC from 'agora-rtc-sdk-ng';
 
 const MotionCard = motion(Card);
 const MotionButton = motion(Button);
@@ -26,8 +29,25 @@ const BuyerMarketplace = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  
+  // Bid modal states
+  const { isOpen: isBidModalOpen, onOpen: onBidModalOpen, onClose: onBidModalClose } = useDisclosure();
   const [selectedProduct, setSelectedProduct] = useState(null);
+  
+  // Call modal states
+  const { isOpen: isCallModalOpen, onOpen: onCallModalOpen, onClose: onCallModalClose } = useDisclosure();
+  const [callType, setCallType] = useState('video'); // 'video' or 'audio'
+  const [callStatus, setCallStatus] = useState('idle'); // 'idle', 'connecting', 'connected', 'ended'
+  const [callFarmer, setCallFarmer] = useState(null);
+  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isAudioOn, setIsAudioOn] = useState(false);
+  
+  // Agora states
+  const agoraClient = useRef(null);
+  const localAudioTrack = useRef(null);
+  const localVideoTrack = useRef(null);
+  const remoteUsers = useRef({});
+  
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,32 +69,28 @@ const BuyerMarketplace = () => {
   // Get backend URL from environment variables
   const backendBaseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8080';
   
-  // Function to handle all types of image URLs
+  // Fixed image URL handling
   const getFullImageUrl = (url) => {
     if (!url) return '/placeholder.jpg';
     
-    if (url.includes(':\\')) {
-      const fileName = url.split('\\').pop();
-      return `${backendBaseUrl}/uploads/${fileName}`;
-    }
-    
-    if (url.startsWith('/uploads/')) {
-      return `${backendBaseUrl}${url}`;
-    }
-    
-    if (url.startsWith('uploads/')) {
-      return `${backendBaseUrl}/${url}`;
-    }
-    
-    if (!url.includes('/') && !url.includes('\\') && url.includes('.')) {
-      return `${backendBaseUrl}/uploads/${url}`;
-    }
-    
+    // If it's a full URL, return as is
     if (url.startsWith('http')) {
       return url;
     }
     
-    return '/placeholder.jpg';
+    // Handle Windows paths
+    if (url.includes('\\')) {
+      const fileName = url.split('\\').pop();
+      return `${backendBaseUrl}/uploads/${fileName}`;
+    }
+    
+    // Handle absolute paths
+    if (url.startsWith('/')) {
+      return `${backendBaseUrl}${url}`;
+    }
+    
+    // Handle relative paths
+    return `${backendBaseUrl}/uploads/${url}`;
   };
 
   const fetchProducts = useCallback(async () => {
@@ -107,6 +123,11 @@ const BuyerMarketplace = () => {
 
   useEffect(() => {
     fetchProducts();
+    
+    // Cleanup Agora on unmount
+    return () => {
+      leaveCall();
+    };
   }, [fetchProducts, retryCount]);
 
   const handleRetry = () => {
@@ -131,7 +152,7 @@ const BuyerMarketplace = () => {
     }
     
     setSelectedProduct(product);
-    onOpen();
+    onBidModalOpen();
   };
 
   const handleBidSubmit = async (bidData) => {
@@ -152,7 +173,7 @@ const BuyerMarketplace = () => {
         isClosable: true,
       });
       
-      onClose();
+      onBidModalClose();
     } catch (error) {
       const errorMessage = error.response?.data?.message || 
                           error.response?.data?.error || 
@@ -175,6 +196,248 @@ const BuyerMarketplace = () => {
     const twentyFourHours = 24 * 60 * 60 * 1000;
     return (currentTime - productTime) < twentyFourHours;
   };
+
+  // Initialize Agora client
+ const initAgora = useCallback(async () => {
+  try {
+    if (!selectedProduct || !selectedProduct.id || !user || !user.id) {
+      throw new Error('Missing required product or user information');
+    }
+
+    // Get Agora token with channel and user parameters
+    const response = await api.get('/agora/token', {
+      params: {
+        channel: `product_${selectedProduct.id}`,
+        uid: user.id
+      }
+    });
+    
+    const { token, appId } = response.data;
+    
+    // Create client with proper codec and mode
+    agoraClient.current = AgoraRTC.createClient({ 
+      mode: 'rtc', 
+      codec: 'h264', // Use h264 for better compatibility
+    });
+    
+    // Set up event listeners
+    agoraClient.current.on('user-published', handleUserPublished);
+    agoraClient.current.on('user-unpublished', handleUserUnpublished);
+    agoraClient.current.on('user-left', handleUserLeft);
+    
+    // Join channel with proper parameters
+    await agoraClient.current.join(
+      appId, 
+      `product_${selectedProduct.id}`, 
+      token, 
+      user.id
+    );
+    
+    setCallStatus('connecting');
+    
+    // Create and publish local tracks
+    const tracks = [];
+    
+    if (callType === 'video') {
+      localVideoTrack.current = await AgoraRTC.createCameraVideoTrack({
+        optimizationMode: "detail",
+        encoderConfig: "720p_1"
+      });
+      localVideoTrack.current.play('local-video');
+      await agoraClient.current.publish(localVideoTrack.current);
+      tracks.push(localVideoTrack.current);
+      setIsVideoOn(true);
+    }
+    
+    localAudioTrack.current = await AgoraRTC.createMicrophoneAudioTrack();
+    await agoraClient.current.publish(localAudioTrack.current);
+    tracks.push(localAudioTrack.current);
+    setIsAudioOn(true);
+    
+    setCallStatus('connected');
+    
+    // Handle track publication errors
+    tracks.forEach(track => {
+      track.on("track-ended", async () => {
+        toast({
+          title: t('Device disconnected'),
+          description: t('Your camera/microphone was disconnected'),
+          status: 'warning',
+          duration: 3000,
+          isClosable: true,
+        });
+      });
+    });
+  } catch (error) {
+    console.error('Agora error:', error);
+    setCallStatus('error');
+    
+    let errorMessage = t('call connection error');
+    
+    if (error.message.includes('CAN_NOT_GET_GATEWAY_SERVER') || 
+        error.message.includes('invalid token')) {
+      errorMessage = t('Authentication failed. Please try again.');
+    } else if (error.message.includes('DEVICE_NOT_FOUND')) {
+      errorMessage = t('Camera or microphone not found');
+    } else if (error.message.includes('PERMISSION_DENIED')) {
+      errorMessage = t('Permission denied for camera/microphone');
+    }
+    
+    toast({
+      title: t('call failed'),
+      description: errorMessage,
+      status: 'error',
+      duration: 5000,
+      isClosable: true,
+    });
+    
+    // Clean up on error
+    leaveCall();
+  }
+}, [selectedProduct, callType, user, t, toast]);
+
+  const handleUserPublished = async (user, mediaType) => {
+    await agoraClient.current.subscribe(user, mediaType);
+    
+    if (mediaType === 'video') {
+      const remotePlayer = document.createElement('div');
+      remotePlayer.id = `remote-${user.uid}`;
+      document.getElementById('remote-container').appendChild(remotePlayer);
+      user.videoTrack.play(`remote-${user.uid}`);
+    }
+    
+    if (mediaType === 'audio') {
+      user.audioTrack.play();
+    }
+    
+    remoteUsers.current[user.uid] = user;
+  };
+
+  const handleUserUnpublished = (user, mediaType) => {
+    if (mediaType === 'video') {
+      const remotePlayer = document.getElementById(`remote-${user.uid}`);
+      if (remotePlayer) remotePlayer.remove();
+    }
+  };
+
+  const handleUserLeft = (user) => {
+    const remotePlayer = document.getElementById(`remote-${user.uid}`);
+    if (remotePlayer) remotePlayer.remove();
+    delete remoteUsers.current[user.uid];
+  };
+
+  const leaveCall = async () => {
+    try {
+      setCallStatus('ending');
+      
+      // Close local tracks
+      if (localVideoTrack.current) {
+        localVideoTrack.current.close();
+        localVideoTrack.current = null;
+      }
+      
+      if (localAudioTrack.current) {
+        localAudioTrack.current.close();
+        localAudioTrack.current = null;
+      }
+      
+      // Remove all remote users
+      Object.values(remoteUsers.current).forEach(user => {
+        const remotePlayer = document.getElementById(`remote-${user.uid}`);
+        if (remotePlayer) remotePlayer.remove();
+      });
+      remoteUsers.current = {};
+      
+      // Leave the channel
+      if (agoraClient.current) {
+        await agoraClient.current.leave();
+        agoraClient.current = null;
+      }
+      
+      setIsVideoOn(false);
+      setIsAudioOn(false);
+      setCallStatus('ended');
+    } catch (error) {
+      console.error('Error leaving call:', error);
+      setCallStatus('error');
+    }
+  };
+
+  const handleCallClick = (product, type) => {
+    if (!user) {
+      toast({
+        title: t('authentication required'),
+        description: t('login to call'),
+        status: 'warning',
+        duration: 5000,
+        isClosable: true,
+      });
+      navigate('/auth');
+      return;
+    }
+    
+    setSelectedProduct(product);
+    setCallFarmer(product.farmer || { name: t('Farmer') });
+    setCallType(type);
+    onCallModalOpen();
+  };
+
+  const toggleCamera = async () => {
+    try {
+      if (localVideoTrack.current) {
+        await agoraClient.current.unpublish(localVideoTrack.current);
+        localVideoTrack.current.close();
+        localVideoTrack.current = null;
+        setIsVideoOn(false);
+      } else {
+        localVideoTrack.current = await AgoraRTC.createCameraVideoTrack();
+        localVideoTrack.current.play('local-video');
+        await agoraClient.current.publish(localVideoTrack.current);
+        setIsVideoOn(true);
+      }
+    } catch (error) {
+      console.error('Error toggling camera:', error);
+      toast({
+        title: t('Camera Error'),
+        description: t('Failed to toggle camera'),
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  const toggleMic = async () => {
+    try {
+      if (localAudioTrack.current) {
+        await agoraClient.current.unpublish(localAudioTrack.current);
+        localAudioTrack.current.close();
+        localAudioTrack.current = null;
+        setIsAudioOn(false);
+      } else {
+        localAudioTrack.current = await AgoraRTC.createMicrophoneAudioTrack();
+        await agoraClient.current.publish(localAudioTrack.current);
+        setIsAudioOn(true);
+      }
+    } catch (error) {
+      console.error('Error toggling microphone:', error);
+      toast({
+        title: t('Microphone Error'),
+        description: t('Failed to toggle microphone'),
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Initialize call when modal opens and product is selected
+  useEffect(() => {
+    if (isCallModalOpen && selectedProduct) {
+      setCallStatus('connecting');
+      initAgora();
+    }
+  }, [isCallModalOpen, selectedProduct, initAgora]);
 
   // Filter and sort products
   const filteredProducts = products
@@ -298,84 +561,84 @@ const BuyerMarketplace = () => {
       
       {/* Search and Filter Section */}
       <Box 
-  bg={cardBg} 
-  p={6} 
-  borderRadius="2xl" 
-  boxShadow="lg" 
-  mb={8}
->
-  <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
-    <InputGroup flex={{ base: '1', md: '3' }}>
-      <InputLeftElement pointerEvents="none">
-        <Icon as={FaSearch} color="gray.400" />
-      </InputLeftElement>
-      <Input 
-        placeholder={t('Search Placeholder')} 
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        size="lg"
-        borderRadius="xl"
-        focusBorderColor={accentColor}
-      />
-    </InputGroup>
-    
-    <Select 
-      placeholder={t('All locations')} 
-      flex={{ base: '1', md: '1' }}
-      value={location}
-      onChange={(e) => setLocation(e.target.value)}
-      size="lg"
-      borderRadius="xl"
-      focusBorderColor={accentColor}
-    >
-      {locations.map(loc => (
-        <option key={loc} value={loc}>{loc}</option>
-      ))}
-    </Select>
-    
-    <Select 
-      value={sortOption}
-      onChange={(e) => setSortOption(e.target.value)}
-      flex={{ base: '1', md: '1' }}
-      size="lg"
-      borderRadius="xl"
-      focusBorderColor={accentColor}
-    >
-      <option value="recent">{t('Most Recent')}</option>
-      <option value="price-low">{t('Price Low > High')}</option>
-      <option value="price-high">{t('Price High > Low')}</option>
-    </Select>
-  </Flex>
-  
-  {/* Filter tags section */}
-  <Flex gap={3} flexWrap="wrap" mt={4}>
-    {category && (
-      <Tag size="lg" borderRadius="full" colorScheme="blue">
-        <TagLabel>{t(category.toLowerCase())}</TagLabel>
-        <TagLeftIcon as={FaLeaf} />
-      </Tag>
-    )}
-    {location && (
-      <Tag size="lg" borderRadius="full" colorScheme="green">
-        <TagLabel>{location}</TagLabel>
-        <TagLeftIcon as={FaMapMarkerAlt} />
-      </Tag>
-    )}
-    {(category || location) && (
-      <Button 
-        size="sm" 
-        variant="ghost" 
-        colorScheme="red"
-        onClick={() => {
-          setCategory('');
-          setLocation('');
-        }}
+        bg={cardBg} 
+        p={6} 
+        borderRadius="2xl" 
+        boxShadow="lg" 
+        mb={8}
       >
-        {t('Clear all')}
-      </Button>
-    )}
-  </Flex>
-</Box>
+        <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
+          <InputGroup flex={{ base: '1', md: '3' }}>
+            <InputLeftElement pointerEvents="none">
+              <Icon as={FaSearch} color="gray.400" />
+            </InputLeftElement>
+            <Input 
+              placeholder={t('Search Placeholder')} 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              size="lg"
+              borderRadius="xl"
+              focusBorderColor={accentColor}
+            />
+          </InputGroup>
+          
+          <Select 
+            placeholder={t('All locations')} 
+            flex={{ base: '1', md: '1' }}
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            size="lg"
+            borderRadius="xl"
+            focusBorderColor={accentColor}
+          >
+            {locations.map(loc => (
+              <option key={loc} value={loc}>{loc}</option>
+            ))}
+          </Select>
+          
+          <Select 
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value)}
+            flex={{ base: '1', md: '1' }}
+            size="lg"
+            borderRadius="xl"
+            focusBorderColor={accentColor}
+          >
+            <option value="recent">{t('Most Recent')}</option>
+            <option value="price-low">{t('Price Low > High')}</option>
+            <option value="price-high">{t('Price High > Low')}</option>
+          </Select>
+        </Flex>
+        
+        {/* Filter tags section */}
+        <Flex gap={3} flexWrap="wrap" mt={4}>
+          {category && (
+            <Tag size="lg" borderRadius="full" colorScheme="blue">
+              <TagLabel>{t(category.toLowerCase())}</TagLabel>
+              <TagLeftIcon as={FaLeaf} />
+            </Tag>
+          )}
+          {location && (
+            <Tag size="lg" borderRadius="full" colorScheme="green">
+              <TagLabel>{location}</TagLabel>
+              <TagLeftIcon as={FaMapMarkerAlt} />
+            </Tag>
+          )}
+          {(category || location) && (
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              colorScheme="red"
+              onClick={() => {
+                setCategory('');
+                setLocation('');
+              }}
+            >
+              {t('Clear all')}
+            </Button>
+          )}
+        </Flex>
+      </Box>
       
       {/* Products Count */}
       {!loading && !error && filteredProducts.length > 0 && (
@@ -560,12 +823,29 @@ const BuyerMarketplace = () => {
                   <MotionButton 
                     colorScheme="teal" 
                     flex={1}
+                    mr={3}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handleBidClick(product)}
                   >
                     {t('Bid now')}
                   </MotionButton>
+                  <Flex direction="column" gap={1}>
+                    <IconButton
+                      icon={<FaVideo />}
+                      aria-label="Video call"
+                      colorScheme="purple"
+                      size="sm"
+                      onClick={() => handleCallClick(product, 'video')}
+                    />
+                    <IconButton
+                      icon={<FaPhone />}
+                      aria-label="Voice call"
+                      colorScheme="green"
+                      size="sm"
+                      onClick={() => handleCallClick(product, 'audio')}
+                    />
+                  </Flex>
                 </CardFooter>
               </MotionCard>
             );
@@ -574,11 +854,143 @@ const BuyerMarketplace = () => {
       )}
       
       <BidModal 
-        isOpen={isOpen} 
-        onClose={onClose} 
+        isOpen={isBidModalOpen} 
+        onClose={onBidModalClose} 
         product={selectedProduct} 
         onSubmit={handleBidSubmit} 
       />
+      
+      {/* Call Modal */}
+      <Modal 
+        isOpen={isCallModalOpen} 
+        onClose={() => {
+          leaveCall();
+          onCallModalClose();
+        }}
+        size="full"
+        closeOnOverlayClick={false}
+      >
+        <ModalOverlay />
+        <ModalContent bg="gray.800" color="white">
+          <ModalHeader>
+            <Flex justify="space-between" align="center">
+              <Text>
+                {callType === 'video' ? t('Video Call') : t('Voice Call')} - {callFarmer?.name || t('Farmer')}
+              </Text>
+              <Text fontSize="md" color={
+                callStatus === 'connected' ? 'green.400' : 
+                callStatus === 'connecting' ? 'yellow.400' : 
+                'red.400'
+              }>
+                {callStatus === 'connecting' && t('Connecting...')}
+                {callStatus === 'connected' && t('Connected')}
+                {callStatus === 'ending' && t('Ending...')}
+                {callStatus === 'ended' && t('Call Ended')}
+                {callStatus === 'error' && t('Error')}
+              </Text>
+              <IconButton
+                icon={<FaTimes />}
+                aria-label="Close call"
+                onClick={() => {
+                  leaveCall();
+                  onCallModalClose();
+                }}
+                variant="ghost"
+              />
+            </Flex>
+          </ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Flex 
+              h="calc(100vh - 200px)" 
+              w="full" 
+              position="relative"
+              justify="center"
+              align="center"
+              bg="black"
+              overflow="hidden"
+            >
+              {/* Remote video container */}
+              <Box 
+                id="remote-container" 
+                w="full" 
+                h="full"
+                position="absolute"
+                top={0}
+                left={0}
+              />
+              
+              {/* Local video */}
+              {callType === 'video' && (
+                <Box
+                  id="local-video"
+                  position="absolute"
+                  bottom={4}
+                  right={4}
+                  w="200px"
+                  h="150px"
+                  borderRadius="lg"
+                  overflow="hidden"
+                  boxShadow="xl"
+                  zIndex={10}
+                />
+              )}
+              
+              {/* Connection status */}
+              {callStatus !== 'connected' && (
+                <VStack spacing={4}>
+                  <Avatar 
+                    size="2xl" 
+                    name={callFarmer?.name || t('Farmer')} 
+                    src={callFarmer?.avatar}
+                  />
+                  <Text fontSize="2xl" fontWeight="bold">
+                    {callStatus === 'connecting' 
+                      ? t('Connecting to farmer...') 
+                      : callStatus === 'ended' 
+                        ? t('Call ended') 
+                        : t('Call error')}
+                  </Text>
+                  <Spinner size="xl" />
+                </VStack>
+              )}
+            </Flex>
+          </ModalBody>
+          <ModalFooter>
+            <HStack spacing={4} w="full" justify="center">
+              <IconButton
+                icon={isVideoOn ? <FaVideo /> : <FaVideoSlash />}
+                aria-label={isVideoOn ? t('Turn off camera') : t('Turn on camera')}
+                colorScheme={isVideoOn ? 'blue' : 'gray'}
+                size="lg"
+                onClick={toggleCamera}
+                isRound
+                disabled={callType !== 'video' || callStatus !== 'connected'}
+              />
+              <IconButton
+                icon={isAudioOn ? <FaMicrophone /> : <FaMicrophoneSlash />}
+                aria-label={isAudioOn ? t('Mute') : t('Unmute')}
+                colorScheme={isAudioOn ? 'blue' : 'red'}
+                size="lg"
+                onClick={toggleMic}
+                isRound
+                disabled={callStatus !== 'connected'}
+              />
+              <IconButton
+                icon={<FaTimes />}
+                aria-label={t('End call')}
+                colorScheme="red"
+                size="lg"
+                onClick={() => {
+                  leaveCall();
+                  onCallModalClose();
+                }}
+                isRound
+              />
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </Box>
   );
 };

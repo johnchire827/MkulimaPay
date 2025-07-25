@@ -3,19 +3,26 @@
     "version": "0.1.0",
     "private": true,
     "dependencies": {
+        "@chakra-ui/alert": "^2.2.2",
+        "@chakra-ui/form-control": "^2.2.0",
         "@chakra-ui/icons": "^2.2.4",
+        "@chakra-ui/modal": "^2.3.1",
+        "@chakra-ui/number-input": "^2.1.2",
         "@chakra-ui/react": "^2.10.9",
+        "@chakra-ui/theme-utils": "^2.0.21",
+        "@chakra-ui/toast": "^7.0.2",
         "@emotion/react": "^11.14.0",
-        "@emotion/styled": "^11.14.0",
+        "@emotion/styled": "^11.14.1",
         "@fortawesome/fontawesome-svg-core": "^6.7.2",
         "@fortawesome/free-solid-svg-icons": "^6.7.2",
         "@fortawesome/react-fontawesome": "^0.2.2",
         "@testing-library/jest-dom": "^6.1.5",
         "@testing-library/react": "^14.1.2",
         "@testing-library/user-event": "^14.5.1",
+        "agora-rtc-sdk-ng": "^4.23.4",
         "axios": "^1.9.0",
         "chart.js": "^4.4.9",
-        "framer-motion": "^10.18.0",
+        "framer-motion": "^6.5.1",
         "html2canvas": "^1.4.1",
         "jspdf": "^3.0.1",
         "leaflet": "^1.9.4",
@@ -29,6 +36,7 @@
         "react-rating": "^2.0.5",
         "react-router-dom": "^6.30.1",
         "react-scripts": "5.0.1",
+        "react-webcam": "^7.2.0",
         "swr": "^2.2.4",
         "web-vitals": "^3.5.0",
         "workbox-webpack-plugin": "^7.0.0"
@@ -59,4 +67,3 @@
         ]
     }
 }
-

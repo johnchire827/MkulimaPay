@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'; 
+import React, { useState, useEffect, useMemo, useRef, useContext } from 'react'; 
 import { 
   Box, Heading, Text, Textarea, Button, SimpleGrid, Card, CardHeader, CardBody, CardFooter, 
   Flex, Spinner, Badge, Icon, Tabs, TabList, Tab, TabPanels, TabPanel, Stat, 
@@ -18,9 +18,11 @@ import {
 import { motion } from 'framer-motion';
 import YieldPrediction from '../components/farmer/YieldPrediction'; 
 import { useAuth } from '../context/AuthContext'; 
-import api from '../services/api'; 
 import { useLanguage } from '../context/LanguageContext'; 
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
+import { FinancialDataContext } from '../context/FinancialDataContext';
+import api from '../services/api';
+
 
 const MotionCard = motion(Card);
 const MotionButton = motion(Button);
@@ -139,7 +141,7 @@ const FarmerDashboard = () => {
     pendingBids: 0,
     previousTotalSales: 0,
     growthPercentage: 0,
-    instoreSalesTotal: 0  // For instore sales total
+    instoreSalesTotal: 0
   }); 
   const [orders, setOrders] = useState([]); 
   const [editProduct, setEditProduct] = useState(null); 
@@ -176,6 +178,9 @@ const FarmerDashboard = () => {
   }); 
   const [isSubmitting, setIsSubmitting] = useState(false); 
 
+  // Financial context for credit scoring
+  const { setFinancialData } = useContext(FinancialDataContext);
+  
   // Backend configuration 
   const backendBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080'; 
   
@@ -202,6 +207,18 @@ const FarmerDashboard = () => {
       return total + (parseFloat(product.price) || 0) * (parseInt(product.quantity) || 0);
     }, 0);
   }, [products]);
+
+  // Update financial context when stats change
+  useEffect(() => {
+    setFinancialData({
+      totalSales: stats.totalSales,
+      growthPercentage: stats.growthPercentage,
+      inventoryValue,
+      rating: stats.rating,
+      pendingOrders: stats.pendingOrders,
+      instoreSalesTotal: stats.instoreSalesTotal
+    });
+  }, [stats, inventoryValue, setFinancialData]);
 
   // Fetch reviews for farmer's products
   const fetchFarmerReviews = async () => {
@@ -2279,7 +2296,7 @@ return (
                   <Text>Interest: 8-12% p.a.</Text>
                 </Box>
               </SimpleGrid>
-              <Button mt={4} colorScheme="blue" onClick={() => navigate('/loans')}>Apply for Agricultural Loan</Button> 
+              <Button mt={4} colorScheme="blue" onClick={() => navigate('/loans')}>Verify your loan eligibility</Button> 
             </CardBody> 
           </Card> 
           

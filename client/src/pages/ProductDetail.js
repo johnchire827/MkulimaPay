@@ -1,15 +1,20 @@
 // C:\Users\johnii\Downloads\mkulima-pay\client\src\pages\ProductDetail.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Box, Heading, Text, Flex, Image, Button, Badge, Icon, Stack, 
   SimpleGrid, Card, CardBody, useToast, Input, FormControl, FormLabel,
   Tabs, TabList, Tab, TabPanels, TabPanel, Spinner, Alert, Textarea, AlertIcon,
-  Avatar, Skeleton, SkeletonText, useColorModeValue, ScaleFade, Fade, SlideFade
+  Avatar, Skeleton, SkeletonText, useColorModeValue, ScaleFade, Fade, SlideFade,
+  Collapse, Modal, ModalOverlay, ModalContent, ModalHeader, ModalFooter, 
+  ModalBody, ModalCloseButton, useDisclosure
 } from '@chakra-ui/react';
 import Rating from 'react-rating';
+import { keyframes } from '@emotion/react';
+
 import { 
   FaStar, FaMapMarkerAlt, FaLeaf, FaShoppingCart, FaTruck, 
-  FaBox, FaRoute, FaUser, FaClock, FaRegStar, FaRobot, FaCheck, FaSeedling
+  FaBox, FaRoute, FaUser, FaClock, FaRegStar, FaRobot, FaCheck, FaSeedling,
+  FaPaperPlane, FaUserCircle, FaTimes, FaEye, FaEyeSlash, FaCamera, FaSync
 } from 'react-icons/fa';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +22,7 @@ import api from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useCart } from '../context/CartContext';
 import ProductVerifier from '../components/ProductVerifier';
+import Webcam from 'react-webcam';
 
 // Modern color palette
 const COLORS = {
@@ -30,8 +36,17 @@ const COLORS = {
   warning: "#DD6B20",          // Warning orange
   error: "#E53E3E",            // Error red
   cardBg: "#FFFFFF",           // White cards
-  highlight: "#E6FFFA"         // Teal highlight
+  highlight: "#E6FFFA",        // Teal highlight
+  aiBg: "#EDF2F7",             // AI chat background
+  aiUserBg: "#BEE3F8",         // User message background
+  aiAssistantBg: "#E6FFFA"     // Assistant message background
 };
+
+// Blinking cursor animation
+const blink = keyframes`
+  from { opacity: 1; }
+  to { opacity: 0; }
+`;
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -54,6 +69,25 @@ const ProductDetail = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [selectedOption, setSelectedOption] = useState(null);
+  
+  // AI Chat states
+  const [chatMessages, setChatMessages] = useState([]);
+  const [userMessage, setUserMessage] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingMessage, setTypingMessage] = useState('');
+  const [typingIndex, setTypingIndex] = useState(0);
+  const chatEndRef = useRef(null);
+  
+  // Camera states
+  const [cameraImage, setCameraImage] = useState(null);
+  const [cameraMode, setCameraMode] = useState('environment'); // 'user' for front, 'environment' for back
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const webcamRef = useRef(null);
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  
+  // Related products visibility
+  const [showRelatedProducts, setShowRelatedProducts] = useState(false);
 
   // Backend base URL
   const backendBaseUrl = 'http://localhost:8080';
@@ -67,6 +101,72 @@ const ProductDetail = () => {
     if (!url) return '/placeholder.jpg';
     if (url.startsWith('http')) return url;
     return `${backendBaseUrl}${url}`;
+  };
+
+  // Camera capture function
+  const capture = useCallback(() => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    setCameraImage(imageSrc);
+    toast({
+      title: 'Photo captured!',
+      description: 'Your photo is ready for verification',
+      status: 'success',
+      duration: 2000,
+      isClosable: true,
+    });
+  }, [webcamRef]);
+
+  // Switch camera mode (front/back)
+  const switchCamera = () => {
+    setCameraMode(prevMode => 
+      prevMode === 'environment' ? 'user' : 'environment'
+    );
+  };
+
+  // Handle verification from camera image
+  const handleCameraVerification = async () => {
+    if (!cameraImage) {
+      toast({
+        title: 'No photo captured',
+        description: 'Please capture a photo first',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    setIsVerifying(true);
+    setIsCameraOpen(false);
+    onClose();
+    handleVerificationStart();
+    
+    try {
+      // Convert data URL to blob
+      const blob = await fetch(cameraImage).then(res => res.blob());
+      const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+      
+      const formData = new FormData();
+      formData.append('image', file);
+      
+      const response = await api.post('/verify-product', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      handleVerificationComplete(response.data);
+    } catch (error) {
+      toast({
+        title: 'Verification failed',
+        description: error.response?.data?.message || 'Could not verify product',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   useEffect(() => {
@@ -158,8 +258,101 @@ const ProductDetail = () => {
     };
   }, [id, t]);
 
+  // Typing effect for AI responses
+  useEffect(() => {
+    if (!isTyping || !typingMessage) return;
+    
+    const typingInterval = setInterval(() => {
+      if (typingIndex < typingMessage.length) {
+        setChatMessages(prev => {
+          const lastIndex = prev.length - 1;
+          if (lastIndex >= 0) {
+            const lastMessage = prev[lastIndex];
+            if (lastMessage.role === 'assistant' && lastMessage.isTyping) {
+              const updatedMessages = [...prev];
+              updatedMessages[lastIndex] = {
+                ...lastMessage,
+                content: typingMessage.substring(0, typingIndex + 1)
+              };
+              return updatedMessages;
+            }
+          }
+          return prev;
+        });
+        setTypingIndex(prev => prev + 1);
+      } else {
+        // Typing complete
+        setIsTyping(false);
+        setChatMessages(prev => {
+          const lastIndex = prev.length - 1;
+          if (lastIndex >= 0) {
+            const updatedMessages = [...prev];
+            updatedMessages[lastIndex] = {
+              ...updatedMessages[lastIndex],
+              isTyping: false
+            };
+            return updatedMessages;
+          }
+          return prev;
+        });
+        clearInterval(typingInterval);
+      }
+    }, 20); // Adjust typing speed here
+    
+    return () => clearInterval(typingInterval);
+  }, [isTyping, typingMessage, typingIndex]);
+
+  useEffect(() => {
+    // Initialize chat when verification result is available
+    if (verificationResult) {
+      const messageContent = `I've analyzed this ${verificationResult.produceType}. ` +
+             `It is in ${verificationResult.condition} condition with a ${verificationResult.qualityGrade} quality grade. ` +
+             `I would ${verificationResult.recommendation === 'Buy' ? 'recommend' : 'not recommend'} purchasing it. ` +
+             `How can I help you understand this analysis better?`;
+      
+      setChatMessages([
+        {
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          isTyping: true
+        }
+      ]);
+      
+      // Start typing effect
+      setTypingMessage(messageContent);
+      setTypingIndex(0);
+      setIsTyping(true);
+    } else {
+      // General assistant greeting
+      const messageContent = "Hello! I'm John Muchire Waweru, your online assistant. Ask me anything about farming, products, or general assistance!";
+      
+      setChatMessages([
+        {
+          role: 'assistant',
+          content: '',
+          timestamp: new Date().toISOString(),
+          isTyping: true
+        }
+      ]);
+      
+      // Start typing effect
+      setTypingMessage(messageContent);
+      setTypingIndex(0);
+      setIsTyping(true);
+    }
+  }, [verificationResult]);
+
+  useEffect(() => {
+    // Scroll to bottom of chat when messages change
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
+
   const handleVerificationStart = () => {
     setIsVerifying(true);
+    setChatMessages([]); // Clear previous chat when new verification starts
   };
 
   const handleVerificationComplete = (result) => {
@@ -359,6 +552,105 @@ const ProductDetail = () => {
     }
   };
 
+  // Handle sending a message to OpenAI
+  const sendMessageToAI = async () => {
+    if (!userMessage.trim()) return;
+    
+    // Add user message to chat
+    const newUserMessage = {
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date().toISOString()
+    };
+    
+    setChatMessages(prev => [...prev, newUserMessage]);
+    setUserMessage('');
+    
+    // Check for specific questions before making API call
+    const messageLower = userMessage.toLowerCase().trim();
+    
+    // Handle predefined questions locally
+    let aiResponse = '';
+    if (messageLower.includes('who created you') || 
+        messageLower.includes('who developed you') || 
+        messageLower.includes('who made you') ||
+        messageLower.includes('who is your creator')) {
+      aiResponse = 'I was created by John Muchire Waweru, a developer who holds a degree in Computer Science. He also attended Karima Boys High School.';
+    } else if (messageLower.includes('when were you developed') || 
+        messageLower.includes('when were you created') || 
+        messageLower.includes('when did you start') ||
+        messageLower.includes('when was you made')) {
+      aiResponse = 'I was developed on 18/07/2025. According to my knowledge base, I was created to assist users with agricultural products and services.';
+    } else {
+      // For other questions, make API call
+      setIsChatLoading(true);
+      
+      try {
+        // Call backend API to get AI response
+        const response = await api.post('/ai/chat', {
+          messages: [
+            ...chatMessages, 
+            newUserMessage
+          ],
+          productId: id,
+          verificationResult: verificationResult
+        });
+        
+        aiResponse = response.data.content;
+      } catch (error) {
+        console.error('Error sending message to AI:', error);
+        aiResponse = 'Sorry, I encountered an error. Please try again later.';
+      } finally {
+        setIsChatLoading(false);
+      }
+    }
+    
+    // Add assistant message with typing effect
+    setChatMessages(prev => [
+      ...prev, 
+      {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        isTyping: true
+      }
+    ]);
+    
+    // Start typing effect
+    setTypingMessage(aiResponse);
+    setTypingIndex(0);
+    setIsTyping(true);
+  };
+
+  // Clear chat history
+  const clearChat = () => {
+    setChatMessages([]);
+    
+    const messageContent = verificationResult 
+      ? 'I can help answer any questions about the quality analysis. What would you like to know?' 
+      : 'Ask me anything about agriculture, farming, or products!';
+    
+    // Add assistant message with typing effect
+    setChatMessages([
+      {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        isTyping: true
+      }
+    ]);
+    
+    // Start typing effect
+    setTypingMessage(messageContent);
+    setTypingIndex(0);
+    setIsTyping(true);
+  };
+
+  // Toggle related products visibility
+  const toggleRelatedProducts = () => {
+    setShowRelatedProducts(!showRelatedProducts);
+  };
+
   if (loading) {
     return (
       <Box p={{ base: 4, md: 8 }} bg={COLORS.background} minH="100vh">
@@ -434,7 +726,7 @@ const ProductDetail = () => {
           bg={COLORS.primary}
           _hover={{ bg: COLORS.primaryLight }}
         >
-          {t('browse_products')}
+          {t('browse products')}
         </Button>
       </Flex>
     );
@@ -731,6 +1023,82 @@ const ProductDetail = () => {
         </Flex>
       </ScaleFade>
       
+      {/* Camera Modal */}
+      <Modal isOpen={isOpen} onClose={onClose} size="xl">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Take a Photo for Verification</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            {!cameraImage ? (
+              <Box position="relative" borderRadius="md" overflow="hidden">
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: cameraMode }}
+                  width="100%"
+                  height="auto"
+                />
+                <Flex position="absolute" bottom={4} left={0} right={0} justify="center">
+                  <Button 
+                    onClick={capture}
+                    colorScheme="green"
+                    size="lg"
+                    borderRadius="full"
+                    boxShadow="lg"
+                    leftIcon={<FaCamera />}
+                  >
+                    Capture
+                  </Button>
+                </Flex>
+                <Button 
+                  position="absolute" 
+                  top={4} 
+                  right={4}
+                  onClick={switchCamera}
+                  borderRadius="full"
+                  size="sm"
+                  leftIcon={<FaSync />}
+                >
+                  {cameraMode === 'environment' ? 'Front Camera' : 'Back Camera'}
+                </Button>
+              </Box>
+            ) : (
+              <Box>
+                <Image 
+                  src={cameraImage} 
+                  alt="Captured for verification" 
+                  w="100%" 
+                  borderRadius="md"
+                />
+                <Flex mt={4} justify="space-between">
+                  <Button 
+                    onClick={() => setCameraImage(null)}
+                    colorScheme="gray"
+                  >
+                    Retake
+                  </Button>
+                  <Button 
+                    onClick={handleCameraVerification}
+                    colorScheme="green"
+                    isLoading={isVerifying}
+                    loadingText="Verifying..."
+                  >
+                    Verify Product
+                  </Button>
+                </Flex>
+              </Box>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button colorScheme="blue" onClick={onClose}>
+              Close
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+      
       {/* Tabs */}
       <Tabs mt={10} variant="unstyled" colorScheme="green">
         <TabList 
@@ -764,7 +1132,7 @@ const ProductDetail = () => {
           >
             <Flex align="center">
               <Icon as={FaRobot} color="blue.500" mr={2} />
-              AI Quality Scan
+              Muchire AI 
             </Flex>
           </Tab>
           <Tab 
@@ -783,7 +1151,7 @@ const ProductDetail = () => {
         <TabPanels mt={6}>
           <TabPanel>
             <Text whiteSpace="pre-wrap" color={COLORS.textSecondary}>
-              {product.description || t('no_description_available')}
+              {product.description || t('no description available')}
             </Text>
             
             {product.specifications && Object.keys(product.specifications).length > 0 && (
@@ -805,19 +1173,34 @@ const ProductDetail = () => {
               <Heading size="md" mb={4} color={COLORS.textPrimary}>
                 <Flex align="center">
                   <Icon as={FaRobot} color="blue.500" mr={2} />
-                  AI-Powered Quality Scanner
+                  AI Agricultural Assistant
                 </Flex>
               </Heading>
               <Text mb={6} color={COLORS.textSecondary}>
-                Upload a photo of the actual product to verify its quality using our AI system. 
-                We'll analyze freshness, defects, and give you a purchase recommendation.
+                Upload a photo or use your camera to verify product quality. Ask me anything about agriculture, farming techniques, or market trends.
               </Text>
               
+              {/* Camera/Upload Options */}
+              <Flex mb={6} gap={4}>
+                <Button 
+                  colorScheme="blue"
+                  leftIcon={<FaCamera />}
+                  onClick={() => {
+                    setIsCameraOpen(true);
+                    onOpen();
+                  }}
+                >
+                  Use Camera
+                </Button>
+              </Flex>
+              
+              {/* Product Verification Component */}
               <ProductVerifier 
-                onVerificationComplete={handleVerificationComplete}
                 onVerificationStart={handleVerificationStart}
+                onVerificationComplete={handleVerificationComplete}
               />
               
+              {/* Verification Loading Indicator */}
               {isVerifying && (
                 <Flex justify="center" my={8}>
                   <Spinner size="xl" color={COLORS.primary} thickness="4px" />
@@ -825,6 +1208,7 @@ const ProductDetail = () => {
                 </Flex>
               )}
               
+              {/* Verification Results */}
               {verificationResult && (
                 <SlideFade in={true} offsetY="20px">
                   <Box 
@@ -834,7 +1218,18 @@ const ProductDetail = () => {
                     borderRadius="xl"
                     borderLeft={`4px solid ${verificationResult.recommendation === 'Buy' ? COLORS.success : COLORS.error}`}
                   >
-                    <Heading size="md" mb={4} color={COLORS.textPrimary}>Quality Analysis Report</Heading>
+                    <Flex justify="space-between" align="center" mb={4}>
+                      <Heading size="md" color={COLORS.textPrimary}>Quality Analysis Report</Heading>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        colorScheme="blue"
+                        onClick={clearChat}
+                        leftIcon={<FaTimes />}
+                      >
+                        Reset Chat
+                      </Button>
+                    </Flex>
                     <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                       <Box>
                         <Text fontWeight="bold" color={COLORS.textSecondary}>Produce Type</Text>
@@ -902,6 +1297,125 @@ const ProductDetail = () => {
                   </Box>
                 </SlideFade>
               )}
+              
+              {/* AI Chat Interface */}
+              <Box mt={8} bg={cardBg} borderRadius="xl" boxShadow="sm" overflow="hidden">
+                <Flex align="center" bg={COLORS.primary} color="white" p={4}>
+                  <Icon as={FaRobot} boxSize={5} mr={2} />
+                  <Text fontWeight="bold">"@Wawerujohn. Ask me anything"</Text>
+                </Flex>
+                
+                <Box 
+                  p={4} 
+                  bg={COLORS.aiBg} 
+                  maxH="400px" 
+                  minH="300px"
+                  overflowY="auto"
+                  borderBottom="1px solid"
+                  borderColor={borderColor}
+                >
+                  {chatMessages.length === 0 ? (
+                    <Flex 
+                      direction="column" 
+                      align="center" 
+                      justify="center" 
+                      h="100%" 
+                      textAlign="center"
+                      p={8}
+                    >
+                      <Icon as={FaRobot} boxSize={10} color="gray.400" mb={4} />
+                      <Text fontSize="lg" fontWeight="bold" mb={2} color={COLORS.textPrimary}>
+                        Agricultural Assistant
+                      </Text>
+                      <Text color={COLORS.textSecondary}>
+                        Ask me anything about farming, agriculture, or product quality!
+                      </Text>
+                    </Flex>
+                  ) : (
+                    <Stack spacing={4}>
+                      {chatMessages.map((message, index) => (
+                        <Fade in={true} key={index}>
+                          <Flex 
+                            align="flex-start" 
+                            direction={message.role === 'user' ? 'row-reverse' : 'row'}
+                          >
+                            {message.role === 'user' ? (
+                              <Avatar 
+                                size="sm"
+                                name={user?.name || 'You'}
+                                src={user?.avatar || <FaUserCircle />}
+                                ml={3}
+                              />
+                            ) : (
+                              <Avatar 
+                                size="sm"
+                                name="Agri Assistant"
+                                src="/ai-assistant.png"
+                                icon={<FaRobot />}
+                                bg="blue.500"
+                                color="white"
+                                mr={3}
+                              />
+                            )}
+                            
+                            <Box 
+                              maxW="80%"
+                              p={3}
+                              borderRadius="lg"
+                              bg={message.role === 'user' ? COLORS.aiUserBg : COLORS.aiAssistantBg}
+                              borderWidth="1px"
+                              borderColor={borderColor}
+                              boxShadow="sm"
+                            >
+                              <Text color={COLORS.textPrimary}>
+                                {message.content}
+                                {message.isTyping && (
+                                  <Text 
+                                    as="span" 
+                                    ml={1}
+                                    animation={`${blink} 1s linear infinite`}
+                                  >
+                                    |
+                                  </Text>
+                                )}
+                              </Text>
+                              <Text 
+                                fontSize="xs" 
+                                color={COLORS.textSecondary} 
+                                mt={1}
+                                textAlign={message.role === 'user' ? 'right' : 'left'}
+                              >
+                                {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </Box>
+                          </Flex>
+                        </Fade>
+                      ))}
+                      <div ref={chatEndRef} />
+                    </Stack>
+                  )}
+                </Box>
+                
+                <Flex p={3} align="center">
+                  <Input 
+                    value={userMessage}
+                    onChange={(e) => setUserMessage(e.target.value)}
+                    placeholder="What would you like to know?"
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessageToAI()}
+                    flex={1}
+                    mr={2}
+                    isDisabled={isTyping || isChatLoading}
+                  />
+                  <Button 
+                    colorScheme="blue"
+                    onClick={sendMessageToAI}
+                    isDisabled={isChatLoading || !userMessage.trim() || isTyping}
+                    leftIcon={<FaPaperPlane />}
+                  >
+                    {isChatLoading ? <Spinner size="sm" /> : 'Send'}
+                  </Button>
+                </Flex>
+              </Box>
             </Box>
           </TabPanel>
           <TabPanel>
@@ -996,56 +1510,72 @@ const ProductDetail = () => {
         </TabPanels>
       </Tabs>
       
-      {/* Related Products */}
+      {/* Related Products Toggle Button */}
       {relatedProducts.length > 0 && (
-        <SlideFade in={true} offsetY="20px">
-          <Box mt={16}>
-            <Flex align="center" mb={6}>
-              <Icon as={FaSeedling} color={COLORS.primary} boxSize={6} mr={2} />
-              <Heading size="lg" color={COLORS.textPrimary}>Related Products</Heading>
-            </Flex>
-            <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={6}>
-              {relatedProducts.map(related => (
-                <Card 
-                  key={related.id} 
-                  borderRadius="2xl"
-                  cursor="pointer"
-                  onClick={() => navigate(`/product/${related.id}`)}
-                  _hover={{ transform: 'translateY(-5px)', shadow: 'lg' }}
-                  transition="all 0.3s"
-                  h="100%"
-                  display="flex"
-                  flexDirection="column"
-                  bg={cardBg}
-                  overflow="hidden"
-                >
-                  <Image 
-                    src={getFullImageUrl(related.imageUrl)}
-                    alt={related.name}
-                    borderTopRadius="2xl"
-                    h="180px"
-                    objectFit="cover"
-                    fallbackSrc="/placeholder.jpg"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = '/placeholder.jpg';
-                    }}
-                  />
-                  <CardBody flex={1} display="flex" flexDirection="column">
-                    <Heading size="sm" mb={2} color={COLORS.textPrimary}>{related.name}</Heading>
-                    <Text fontSize="sm" color={COLORS.textSecondary} mb={3} noOfLines={2}>
-                      {related.shortDescription || related.description?.substring(0, 80) + '...'}
-                    </Text>
-                    <Text fontWeight="bold" mt="auto" color={COLORS.textPrimary}>
-                      KES {related.price?.toLocaleString?.() || '0.00'}/{related.unit}
-                    </Text>
-                  </CardBody>
-                </Card>
-              ))}
-            </SimpleGrid>
-          </Box>
-        </SlideFade>
+        <Flex justify="center" mt={8}>
+          <Button 
+            onClick={toggleRelatedProducts} 
+            colorScheme="green" 
+            leftIcon={showRelatedProducts ? <FaEyeSlash /> : <FaEye />}
+            variant="outline"
+          >
+            {showRelatedProducts ? 'Hide Related Products' : 'View Related Products'}
+          </Button>
+        </Flex>
       )}
+      
+      {/* Related Products - Collapsible Section */}
+      <Collapse in={showRelatedProducts} animateOpacity>
+        {relatedProducts.length > 0 && (
+          <SlideFade in={showRelatedProducts} offsetY="20px">
+            <Box mt={8}>
+              <Flex align="center" mb={6}>
+                <Icon as={FaSeedling} color={COLORS.primary} boxSize={6} mr={2} />
+                <Heading size="lg" color={COLORS.textPrimary}>Related Products</Heading>
+              </Flex>
+              <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={6}>
+                {relatedProducts.map(related => (
+                  <Card 
+                    key={related.id} 
+                    borderRadius="2xl"
+                    cursor="pointer"
+                    onClick={() => navigate(`/product/${related.id}`)}
+                    _hover={{ transform: 'translateY(-5px)', shadow: 'lg' }}
+                    transition="all 0.3s"
+                    h="100%"
+                    display="flex"
+                    flexDirection="column"
+                    bg={cardBg}
+                    overflow="hidden"
+                  >
+                    <Image 
+                      src={getFullImageUrl(related.imageUrl)}
+                      alt={related.name}
+                      borderTopRadius="2xl"
+                      h="180px"
+                      objectFit="cover"
+                      fallbackSrc="/placeholder.jpg"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = '/placeholder.jpg';
+                      }}
+                    />
+                    <CardBody flex={1} display="flex" flexDirection="column">
+                      <Heading size="sm" mb={2} color={COLORS.textPrimary}>{related.name}</Heading>
+                      <Text fontSize="sm" color={COLORS.textSecondary} mb={3} noOfLines={2}>
+                        {related.shortDescription || related.description?.substring(0, 80) + '...'}
+                      </Text>
+                      <Text fontWeight="bold" mt="auto" color={COLORS.textPrimary}>
+                        KES {related.price?.toLocaleString?.() || '0.00'}/{related.unit}
+                      </Text>
+                    </CardBody>
+                  </Card>
+                ))}
+              </SimpleGrid>
+            </Box>
+          </SlideFade>
+        )}
+      </Collapse>
     </Box>
   );
 };
