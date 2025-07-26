@@ -102,10 +102,14 @@ module.exports = (sequelize, DataTypes) => {
       field: 'image_url',
       defaultValue: ''
     },
-    rating: {
-      type: DataTypes.DOUBLE,
-      defaultValue: 0
-    },
+  rating: {
+  type: DataTypes.DOUBLE,
+  defaultValue: 0,
+  get() {
+    const rawValue = this.getDataValue('rating');
+    return rawValue ? parseFloat(rawValue) : 0; // Ensure it's a number
+  }
+},
     reviewCount: {
       type: DataTypes.INTEGER,
       field: 'review_count',

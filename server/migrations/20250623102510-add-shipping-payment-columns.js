@@ -1,13 +1,21 @@
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('orders', 'shipping_address', {
-      type: Sequelize.STRING
-    });
-    await queryInterface.addColumn('orders', 'payment_method', {
-      type: Sequelize.STRING
-    });
+  async up(queryInterface, Sequelize) {
+    const tableInfo = await queryInterface.describeTable('orders');
+    
+    if (!tableInfo.shipping_address) {
+      await queryInterface.addColumn('orders', 'shipping_address', {
+        type: Sequelize.STRING
+      });
+    }
+    
+    if (!tableInfo.payment_method) {
+      await queryInterface.addColumn('orders', 'payment_method', {
+        type: Sequelize.STRING
+      });
+    }
   },
-  down: async (queryInterface, Sequelize) => {
+
+  async down(queryInterface) {
     await queryInterface.removeColumn('orders', 'shipping_address');
     await queryInterface.removeColumn('orders', 'payment_method');
   }

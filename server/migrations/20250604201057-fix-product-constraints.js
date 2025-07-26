@@ -2,20 +2,28 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.changeColumn('Products', 'name', {
+    // Use lowercase table name 'products' instead of 'Products'
+    await queryInterface.changeColumn('products', 'name', {
       type: Sequelize.STRING,
       allowNull: false
     });
     
-    await queryInterface.changeColumn('Products', 'description', {
+    await queryInterface.changeColumn('products', 'description', {
       type: Sequelize.TEXT,
-      allowNull: true // Make description optional
+      allowNull: true
     });
-    
-    // Add other column fixes as needed
   },
 
-  down: async (queryInterface) => {
-    // Revert changes if needed
+  down: async (queryInterface, Sequelize) => {
+    // Revert changes if needed (optional)
+    await queryInterface.changeColumn('products', 'name', {
+      type: Sequelize.STRING,
+      allowNull: true
+    });
+    
+    await queryInterface.changeColumn('products', 'description', {
+      type: Sequelize.TEXT,
+      allowNull: false
+    });
   }
 };

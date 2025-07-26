@@ -11,7 +11,7 @@ module.exports = {
       farmer_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Users',
+          model: 'users',  // Correctly lowercase
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -20,7 +20,7 @@ module.exports = {
       product_id: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'Products',
+          model: 'products',  // Changed from 'Products' to 'products'
           key: 'id'
         },
         onUpdate: 'CASCADE',
@@ -40,11 +40,13 @@ module.exports = {
       },
       created_at: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       },
       updated_at: {
         allowNull: false,
-        type: Sequelize.DATE
+        type: Sequelize.DATE,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
       }
     });
   },

@@ -777,12 +777,14 @@ const BuyerMarketplace = () => {
                 <CardHeader pb={0}>
                   <Flex justify="space-between" align="center">
                     <Heading size="md">{product.name}</Heading>
-                    {product.rating && (
-                      <Flex align="center" color="yellow.400">
-                        <Icon as={FaStar} />
-                        <Text ml={1} fontWeight="bold">{product.rating.toFixed(1)}</Text>
-                      </Flex>
-                    )}
+                  {product.rating != null && !isNaN(product.rating) && (
+  <Flex align="center" color="yellow.400">
+    <Icon as={FaStar} />
+    <Text ml={1} fontWeight="bold">
+      {Number(product.rating).toFixed(1)}
+    </Text>
+  </Flex>
+)}
                   </Flex>
                   
                   <Flex align="center" mt={2}>

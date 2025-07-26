@@ -1,34 +1,36 @@
 'use strict';
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    // Remove duplicate foreign key constraints
-    await queryInterface.removeConstraint('Products', 'Products_farmerId_fkey');
-    
-    // Remove the camelCase farmerId column
-    await queryInterface.removeColumn('Products', 'farmerId');
-    
-    // Rename farmer_id to farmerId if needed (or keep as farmer_id)
-    // If you want to keep snake_case, no rename needed
-  },
+  up: async (queryInterface, Sequelize) => {
+    // Check if the constraint exists before trying to drop it
+   const constraints = await queryInterface.sequelize.query(
+  `SELECT constraint_name 
+   FROM information_schema.table_constraints 
+   WHERE table_name = 'products'
+   AND constraint_type = 'FOREIGN KEY' 
+   AND constraint_name = 'products_farmerId_fkey'`
+);
 
-  async down(queryInterface, Sequelize) {
-    // For rollback: add back the farmerId column
-    await queryInterface.addColumn('Products', 'farmerId', {
-      type: Sequelize.INTEGER,
-      allowNull: false
-    });
     
-    // Add back the foreign key constraint
-    await queryInterface.addConstraint('Products', {
+    if (constraints[0].length > 0) {
+      await queryInterface.removeConstraint('products', 'products_farmerId_fkey');  // Changed to lowercase
+    }
+    
+    // Add the new constraint
+    await queryInterface.addConstraint('products', {  // Changed to lowercase
       fields: ['farmerId'],
       type: 'foreign key',
-      name: 'Products_farmerId_fkey',
+      name: 'products_farmerId_fkey',  // Changed to lowercase
       references: {
         table: 'users',
         field: 'id'
       },
+      onDelete: 'CASCADE',
       onUpdate: 'CASCADE'
     });
+  },
+
+  down: async (queryInterface, Sequelize) => {
+    await queryInterface.removeConstraint('products', 'products_farmerId_fkey');  // Changed to lowercase
   }
 };

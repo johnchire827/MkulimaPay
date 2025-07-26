@@ -17,7 +17,7 @@ module.exports = {
       productId: {
         type: Sequelize.INTEGER,
         references: {
-          model: 'products',
+          model: 'products',  // Changed from 'products' to 'Products'
           key: 'id'
         }
       },
@@ -28,11 +28,11 @@ module.exports = {
           key: 'id'
         }
       },
-      created_at: {
+      createdAt: {  // Changed from created_at to createdAt for consistency
         type: Sequelize.DATE,
         allowNull: false
       },
-      updated_at: {
+      updatedAt: {  // Changed from updated_at to updatedAt for consistency
         type: Sequelize.DATE,
         allowNull: false
       }

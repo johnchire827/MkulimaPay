@@ -41,7 +41,7 @@ module.exports = {
         type: Sequelize.INTEGER,
         allowNull: false,
         references: {
-          model: 'Products',
+          model: 'products',  // Changed from 'Products' to 'products'
           key: 'id'
         }
       },
@@ -51,22 +51,22 @@ module.exports = {
       }
     });
 
-    await queryInterface.addColumn('Products', 'currentStage', {
+    await queryInterface.addColumn('products', 'currentStage', {  // Changed from 'Products'
       type: Sequelize.STRING,
       defaultValue: 'planting'
     });
 
-    await queryInterface.addColumn('Products', 'blockchainVerified', {
+    await queryInterface.addColumn('products', 'blockchainVerified', {  // Changed from 'Products'
       type: Sequelize.BOOLEAN,
       defaultValue: false
     });
 
-    await queryInterface.addColumn('Products', 'blockchainTxHash', {
+    await queryInterface.addColumn('products', 'blockchainTxHash', {  // Changed from 'Products'
       type: Sequelize.STRING,
       defaultValue: ''
     });
 
-    await queryInterface.addColumn('Products', 'origin', {
+    await queryInterface.addColumn('products', 'origin', {  // Changed from 'Products'
       type: Sequelize.STRING,
       allowNull: true
     });
@@ -74,9 +74,9 @@ module.exports = {
 
   down: async (queryInterface, Sequelize) => {
     await queryInterface.dropTable('SupplyChainEvents');
-    await queryInterface.removeColumn('Products', 'currentStage');
-    await queryInterface.removeColumn('Products', 'blockchainVerified');
-    await queryInterface.removeColumn('Products', 'blockchainTxHash');
-    await queryInterface.removeColumn('Products', 'origin');
+    await queryInterface.removeColumn('products', 'currentStage');  // Changed from 'Products'
+    await queryInterface.removeColumn('products', 'blockchainVerified');  // Changed from 'Products'
+    await queryInterface.removeColumn('products', 'blockchainTxHash');  // Changed from 'Products'
+    await queryInterface.removeColumn('products', 'origin');  // Changed from 'Products'
   }
 };

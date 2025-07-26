@@ -2,10 +2,10 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    const tableDescription = await queryInterface.describeTable('Products');
+    const tableDescription = await queryInterface.describeTable('products'); // lowercase
     
     if (!tableDescription.reviewCount) {
-      await queryInterface.addColumn('Products', 'reviewCount', {
+      await queryInterface.addColumn('products', 'reviewCount', { // lowercase
         type: Sequelize.INTEGER,
         defaultValue: 0,
         allowNull: false
@@ -14,10 +14,10 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    const tableDescription = await queryInterface.describeTable('Products');
+    const tableDescription = await queryInterface.describeTable('products'); // lowercase
     
     if (tableDescription.reviewCount) {
-      await queryInterface.removeColumn('Products', 'reviewCount');
+      await queryInterface.removeColumn('products', 'reviewCount'); // lowercase
     }
   }
 };

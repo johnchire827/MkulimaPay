@@ -2,10 +2,10 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    const tableDescription = await queryInterface.describeTable('Products');
+    const tableDescription = await queryInterface.describeTable('products'); // lowercase
     
     if (!tableDescription.imageUrl) {
-      await queryInterface.addColumn('Products', 'imageUrl', {
+      await queryInterface.addColumn('products', 'imageUrl', { // lowercase
         type: Sequelize.STRING,
         defaultValue: ''
       });
@@ -13,10 +13,10 @@ module.exports = {
   },
 
   down: async (queryInterface, Sequelize) => {
-    const tableDescription = await queryInterface.describeTable('Products');
+    const tableDescription = await queryInterface.describeTable('products'); // lowercase
     
     if (tableDescription.imageUrl) {
-      await queryInterface.removeColumn('Products', 'imageUrl');
+      await queryInterface.removeColumn('products', 'imageUrl'); // lowercase
     }
   }
 };
